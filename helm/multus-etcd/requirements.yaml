@@ -1,0 +1,5 @@
+dependencies:
+  - name: etcd
+    repository: http://127.0.0.1:8879
+    version: 0.7.3
+    alias: etcdcni
