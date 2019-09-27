@@ -36,9 +36,9 @@ import (
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	cniversion "github.com/containernetworking/cni/pkg/version"
 	"github.com/containernetworking/plugins/pkg/ns"
-	k8s "github.com/intel/multus-cni/k8sclient"
-	"github.com/intel/multus-cni/logging"
-	"github.com/intel/multus-cni/types"
+	k8s "github.com/archichris/multus-hc/k8sclient"
+	"github.com/archichris/multus-hc/logging"
+	"github.com/archichris/multus-hc/types"
 	"github.com/vishvananda/netlink"
 	"k8s.io/apimachinery/pkg/util/wait"
 )

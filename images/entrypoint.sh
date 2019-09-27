@@ -39,6 +39,8 @@ HOST_ETCD_BIN_FILE="/usr/src/multus-cni/bin/host-etcd"
 SRC_CNI_BIN="/usr/src/multus-cni/cni"
 CERTS_CLIENT="/tmp/etcd/certs/client/"
 
+EXT_DRIVER_DIR="/usr/src/multus-cni/package"
+
 
 # Give help text for parameters.
 function usage() {
@@ -69,6 +71,8 @@ function usage() {
   echo -e "\t--etcd-conf-file=$ETCD_CONF_FILE"
   echo -e "\t--etcd-file-host=$ETCD_FILE_HOST"
   echo -e "\t--host-etcd-bin-file=$HOST_ETCD_BIN_FILE"
+  # Driver Directory
+  echo -e "\t--ext-driver-dir=$EXT_DRIVER_DIR"
 }
 
 function log() {
@@ -140,6 +144,9 @@ while [ "$1" != "" ]; do
     ;;
   --etcd-tls)
     ETCD_TLS=$VALUE
+    ;;
+  --ext_driver_dir)
+    EXT_DRIVER_DIR=$VALUE
     ;;
   *)
     warn "unknown parameter \"$PARAM\""
@@ -233,7 +240,7 @@ fi
 
 # ---------------------- Generate a "ectd configuration".
 # Copy host-etcd to directory of cni
-cp -f $MULTUS_BIN_FILE $CNI_BIN_DIR/_host-etcd
+cp -f $HOST_ETCD_BIN_FILE $CNI_BIN_DIR/_host-etcd
 mv -f $CNI_BIN_DIR/_host-etcd $CNI_BIN_DIR/host-etcd
 
 # Copy other missing cni
@@ -243,16 +250,27 @@ for cni in $(ls $SRC_CNI_BIN); do
   fi
 done
 
+# install ipvlan drivers
+set +e
+modinfo ipvlan
+if [ $? == 1 ]; then
+    $EXT_DRIVER_DIR/ipvlan/ipvlan.sh update
+fi
+set -e
+
 # Copy etcd conf
 MULTUS_ETCD_DIR=$CNI_CONF_DIR/multus.d/etcd
 mkdir -p $MULTUS_ETCD_DIR
 cp -f  $ETCD_CONF_FILE $ETCD_FILE_HOST
+
+echo $HOSTNAME > $MULTUS_ETCD_DIR/id
 
 # copy cert, key, ca to etcd directory
 if [ -d "$CERTS_CLIENT" ]; then
   mkdir -p $MULTUS_ETCD_DIR/pki
   cp -f $CERTS_CLIENT/* $MULTUS_ETCD_DIR/pki
 fi
+
 # ---------------------- end a "ectd configuration".
 
 # ------------------------------- Generate "00-multus.conf"

@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: example-ipvlan
+  labels:
+    app: example-ipvlan
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: example-ipvlan
+  template:
+    metadata:
+      labels:
+        app: example-ipvlan
+      annotations:
+        k8s.v1.cni.cncf.io/mynetworks: ipvlan1, ipvlan2
+    spec:
+      containers:
+      - name: example-ipvlan
+        image: 100.125.0.198:20202/hwofficial/busybox 
+        command:
+        - sleep
+        - "100000"
+        volumeMounts:
+        - mountPath: /var/multus
+          name: multus
+      volumes:
+      - hostPath:
+          path: /root/multus
+        name: multus
+
+

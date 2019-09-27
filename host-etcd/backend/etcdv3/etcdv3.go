@@ -21,7 +21,7 @@ import (
 
 var (
 	dialTimeout       = 5 * time.Second
-	requestTimeout    = 10 * time.Second
+	requestTimeout    = 5 * time.Second
 	defaultEtcdCfgDir = "/etc/cni/net.d/multus.d/etcd"
 	rootKeyDir        = "multus" //multus/netowrkname/key(ipsegment):value(node)
 	keyTemplate       = "%10d-%10d"
@@ -30,11 +30,12 @@ var (
 
 // EtcdJSONCfg is the struct of stored etcd information
 type EtcdJSONCfg struct {
-	Name       string  `json:"name"`
-	Namespace  string  `json:"namespace"`
-	ClientPort string  `json:"clientPort"`
-	Replicas   int     `json:"replicas`
-	Auth       AuthCfg `json:"auth"`
+	Name      string `json:"name"`
+	Endpoints string `json:"endpoints"`
+	// Namespace string `json:"namespace"`
+	// ClientPort string  `json:"clientPort"`
+	// Replicas   int     `json:"replicas`
+	Auth AuthCfg `json:"auth"`
 }
 
 type AuthCfg struct {
@@ -61,7 +62,19 @@ func ApplyNewIPRange(network string, subnet *types.IPNet, unit uint32) (net.IP, 
 	if etcdCfgDir == "" {
 		etcdCfgDir = defaultEtcdCfgDir
 	}
-	nodeName := os.Getenv("HOSTNAME")
+	id := os.Getenv("HOSTNAME")
+	if id == "" {
+		data, err := ioutil.ReadFile(etcdCfgDir + "/id")
+		if err == nil {
+			id = string(data)
+		} else {
+			return nil, nil, fmt.Errorf("empty hostname")
+			// only for test
+			// rand.Seed(10000)
+			// id = strconv.Itoa(rand.Intn(10000))
+			// ioutil.WriteFile(etcdCfgDir+"/id", []byte(id), 0644)
+		}
+	}
 
 	data, err := ioutil.ReadFile(etcdCfgDir + "/etcd.conf")
 	if err != nil {
@@ -75,12 +88,7 @@ func ApplyNewIPRange(network string, subnet *types.IPNet, unit uint32) (net.IP, 
 		return nil, nil, err
 	}
 
-	endpoints := []string{}
-	endpointTemplate := etcdCfg.Name + "-%d." + etcdCfg.Name + "." + etcdCfg.Namespace + ".svc" + ":" + etcdCfg.ClientPort
-	for i := 0; i < etcdCfg.Replicas; i++ {
-		endpoint := fmt.Sprintf(endpointTemplate, i)
-		endpoints = append(endpoints, endpoint)
-	}
+	endpoints := strings.Split(etcdCfg.Endpoints, ",")
 
 	if len(endpoints) == 0 {
 		return nil, nil, fmt.Errorf("no etcd endpoints")
@@ -127,23 +135,39 @@ func ApplyNewIPRange(network string, subnet *types.IPNet, unit uint32) (net.IP, 
 	for i := 1; i <= maxApplyTry; i++ {
 		IPBegin, IPEnd, err := GetFreeIPRange(cli, keyDir, subnet, unit)
 		if err != nil {
-			return nil, nil, err
+			log.Println(err)
+			//try 3 times
+			continue
 		}
 		claimKey := fmt.Sprintf(keyTemplate, IPBegin, IPEnd)
 
+		getResp, err := cli.Get(context.TODO(), keyDir+"/"+claimKey)
+		if len(getResp.Kvs) > 0 {
+			continue
+		}
+
 		// Claim the ownship of the IP range
-		putResp, err := cli.Put(context.TODO(), keyDir+"/"+claimKey, nodeName)
+		_, err = cli.Put(context.TODO(), keyDir+"/"+claimKey, id)
 		if err != nil {
 			log.Println(err)
-			return nil, nil, err
+			continue
 		}
 		// Verify the ownship of the IP range
-		getResp, err := cli.Get(context.TODO(), keyDir+"/"+claimKey)
-		if err != nil {
+	   
+		for i := 1; i <= maxApplyTry; i++{
+			getResp, err = cli.Get(context.TODO(), keyDir+"/"+claimKey)
+			if (err != nil) || (len(getResp.Kvs) == 0) {
+				log.Println(err)
+				time.Sleep(time.Duration(1) * time.Second)
+				continue
+			}
+		}
+		if (err != nil) || (len(getResp.Kvs) == 0)  {
 			log.Println(err)
 			return nil, nil, err
 		}
-		if putResp.Header.Revision == getResp.Header.Revision {
+		// if putResp.Header.Revision == getResp.Header.Revision {
+		if string(getResp.Kvs[0].Value) == id {
 			beginIP := make(net.IP, 4)
 			endIP := make(net.IP, 4)
 			binary.BigEndian.PutUint32(beginIP, IPBegin)
@@ -151,24 +175,26 @@ func ApplyNewIPRange(network string, subnet *types.IPNet, unit uint32) (net.IP, 
 			return beginIP, endIP, nil
 		}
 	}
-	return nil, nil, errors.New("can't apply free IP range")
+	return nil, nil, errors.New("apply new IP range failed")
 }
 
 // GetFreeIPRange is used to find a free IP range
-func GetFreeIPRange(cli *clientv3.Client, dir string, subnet *types.IPNet, unit uint32) (uint32, uint32, error) {
+func GetFreeIPRange(cli *clientv3.Client, keyDir string, subnet *types.IPNet, unit uint32) (uint32, uint32, error) {
 	bIP := binary.BigEndian.Uint32(subnet.IP.To4()) + 1
 	eIP := bIP + ^binary.BigEndian.Uint32(subnet.Mask) - 1
 	lastIP := bIP
-	getResp, err := cli.Get(context.TODO(), dir, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend))
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	getResp, err := cli.Get(ctx, keyDir, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend))
+	cancel()
 	if err != nil {
-		return 0, 0, nil
+		return 0, 0, err
 	}
 	var IPBegin, IPEnd uint32
 	for _, ev := range getResp.Kvs {
-		IPRange := strings.Split(string(ev.Key), "-")
-		tmpU64, _ := strconv.ParseUint(IPRange[0][strings.LastIndex(IPRange[0], "/")+1:], 10, 32)
+		IPRange := strings.Split(string(ev.Key)[strings.LastIndex(string(ev.Key), "/")+1:], "-")
+		tmpU64, _ := strconv.ParseUint(IPRange[0], 10, 32)
 		IPRangeBegin := uint32(tmpU64)
-		if uint32(IPRangeBegin)-lastIP <= 1 {
+		if IPRangeBegin-lastIP <= 1 {
 			tmpU64, _ = strconv.ParseUint(IPRange[1], 10, 32)
 			lastIP = uint32(tmpU64)
 			continue

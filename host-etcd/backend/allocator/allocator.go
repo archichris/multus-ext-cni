@@ -21,9 +21,9 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/archichris/multus-hc/host-etcd/backend"
 	"github.com/containernetworking/cni/pkg/types/current"
 	"github.com/containernetworking/plugins/pkg/ip"
-	"github.com/containernetworking/plugins/plugins/ipam/host-local/backend"
 )
 
 type IPAllocator struct {

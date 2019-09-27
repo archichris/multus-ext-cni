@@ -248,6 +248,7 @@ func (s *Store) FlashRangeSetToCache(rangeSet []string) error {
 		return err
 	}
 	defer f.Close()
+	defer f.Sync()
 	for _, line := range rangeSet {
 		f.WriteString(line + "\n")
 	}

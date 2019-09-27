@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: example-macvlan
+  labels:
+    app: example-macvlan
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: example-macvlan
+  template:
+    metadata:
+      labels:
+        app: example-macvlan
+      annotations:
+        k8s.v1.cni.cncf.io/mynetworks: macvlan1, macvlan2
+    spec:
+      containers:
+      - name: example-macvlan
+        image: busybox
+        command:
+        - sleep
+        - 1000000
+        volumeMounts:
+        - mountPath: /var/multus
+          name: multus
+      volumes:
+      - hostPath:
+          path: /root/multus
+        name: multus
+
+

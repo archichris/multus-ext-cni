@@ -21,10 +21,9 @@ import (
 	"net"
 	"strings"
 
-	"github.com/containernetworking/plugins/plugins/ipam/host-etcd/backend/etcdv3"
-
-	"github.com/archichris/multus-cni/host-etcd/backend/allocator"
-	"github.com/archichris/multus-cni/host-etcd/backend/disk"
+	"github.com/archichris/multus-hc/host-etcd/backend/etcdv3"
+	"github.com/archichris/multus-hc/host-etcd/backend/allocator"
+	"github.com/archichris/multus-hc/host-etcd/backend/disk"
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/types/current"
@@ -161,13 +160,14 @@ func formRangeSets(origin []allocator.RangeSet, network string, unit uint32, sto
 	}
 
 	flashCache := false
+	// RangeSets to find
 	rss := []allocator.RangeSet{}
-	for _, ors := range origin {
+	for _, oriRs := range origin {
 		rs := allocator.RangeSet{}
-		for _, cr := range cacheRangeSet {
-			if or, _ := ors.RangeFor(cr.RangeStart); or != nil {
-				r := or
-				r.RangeStart, r.RangeEnd = or.RangeStart, or.RangeEnd
+		for _, cacheRange := range cacheRangeSet {
+			if oriRange, _ := oriRs.RangeFor(cacheRange.RangeStart); oriRange != nil {
+				r := oriRange
+				r.RangeStart, r.RangeEnd = cacheRange.RangeStart, cacheRange.RangeEnd
 				rs = append(rs, *r)
 			}
 		}
@@ -175,12 +175,12 @@ func formRangeSets(origin []allocator.RangeSet, network string, unit uint32, sto
 		// no exist range match requested subnet
 		if len(rs) == 0 {
 			// apply ip slice from etcd
-			sIP, eIP, err := etcdv3.ApplyNewIPRange(network, &ors[0].Subnet, unit)
+			sIP, eIP, err := etcdv3.ApplyNewIPRange(network, &oriRs[0].Subnet, unit)
 			if err != nil {
 				return nil, err
 			}
 			flashCache = true
-			r := ors[0]
+			r := oriRs[0]
 			r.RangeStart, r.RangeEnd = sIP, eIP
 			rs = append(rs, r)
 		}
