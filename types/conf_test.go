@@ -26,7 +26,7 @@ import (
 	types020 "github.com/containernetworking/cni/pkg/types/020"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/containernetworking/plugins/pkg/testutils"
-	testhelpers "github.com/archichris/multus-hc/testing"
+	testhelpers "github.com/intel/multus-cni/testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

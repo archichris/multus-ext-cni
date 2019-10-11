@@ -1,4 +1,4 @@
-module github.com/archichris/multus-hc
+module github.com/intel/multus-cni
 
 go 1.12
 
@@ -22,6 +22,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.11.2 // indirect
 	github.com/imdario/mergo v0.0.0-20141206190957-6633656539c1 // indirect
+	github.com/j-keck/arping v0.0.0-20160618110441-2cf9dc699c56
 	github.com/jonboulle/clockwork v0.1.0 // indirect
 	github.com/onsi/ginkgo v1.9.0
 	github.com/onsi/gomega v1.6.0

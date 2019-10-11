@@ -135,7 +135,7 @@ spec:
       containers:
       - name: kube-multus
         # image: nfvpe/multus:v3.2
-        image: multus-hc:v1.0.7
+        image: multus-ext:v1.0.7
         command: ["/entrypoint.sh"]
         args:
         - "--multus-conf-file=auto"

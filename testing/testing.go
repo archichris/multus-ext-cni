@@ -73,7 +73,7 @@ func (f *FakeKubeClient) AddNetConfig(namespace, name, data string) {
 }`, namespace, name, strings.Replace(data, "\"", "\\\"", -1))
 	cr = strings.Replace(cr, "\n", "", -1)
 	cr = strings.Replace(cr, "\t", "", -1)
-	f.nets[fmt.Sprintf("/apis/k8s.cni.cncf.io/v1/namespaces/%s/network-definitions/%s", namespace, name)] = cr
+	f.nets[fmt.Sprintf("/apis/k8s.cni.cncf.io/v1/namespaces/%s/network-attachment-definitions/%s", namespace, name)] = cr
 }
 
 // AddNetConfigAnnotation adds net-attach-def into its client with an annotation
@@ -94,7 +94,7 @@ func (f *FakeKubeClient) AddNetConfigAnnotation(namespace, name, data string) {
   }`, namespace, name, strings.Replace(data, "\"", "\\\"", -1))
 	cr = strings.Replace(cr, "\n", "", -1)
 	cr = strings.Replace(cr, "\t", "", -1)
-	f.nets[fmt.Sprintf("/apis/k8s.cni.cncf.io/v1/namespaces/%s/network-definitions/%s", namespace, name)] = cr
+	f.nets[fmt.Sprintf("/apis/k8s.cni.cncf.io/v1/namespaces/%s/network-attachment-definitions/%s", namespace, name)] = cr
 }
 
 // AddNetFile puts config file as net-attach-def
@@ -107,7 +107,7 @@ func (f *FakeKubeClient) AddNetFile(namespace, name, filePath, fileData string) 
     "name": "%s"
   }
 }`, namespace, name)
-	f.nets[fmt.Sprintf("/apis/k8s.cni.cncf.io/v1/namespaces/%s/network-definitions/%s", namespace, name)] = cr
+	f.nets[fmt.Sprintf("/apis/k8s.cni.cncf.io/v1/namespaces/%s/"+crdPlural+"/%s", namespace, name)] = cr
 
 	err := ioutil.WriteFile(filePath, []byte(fileData), 0600)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())

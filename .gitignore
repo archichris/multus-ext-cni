@@ -7,3 +7,7 @@ gopath/
 # Test outputs
 *.out
 *.test
+
+
+# Local file
+*.local

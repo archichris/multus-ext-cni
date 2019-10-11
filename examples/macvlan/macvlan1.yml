@@ -9,7 +9,7 @@ spec:
       "master": "eth1",
       "mode": "bridge",
       "ipam": {
-        "type": "host-etcd",
+        "type": "multus-ipam",
         "ranges": [
           [
             { 

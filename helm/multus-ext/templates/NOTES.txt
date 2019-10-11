@@ -1,0 +1,1 @@
+muluts, etcd and multus-ipam-cni have been deployed

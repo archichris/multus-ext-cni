@@ -95,8 +95,8 @@ type DelegateNetConf struct {
 	Bytes []byte
 }
 
-// NetworkDefinition represents net-attach-def of K8s NPWG spec
-type NetworkDefinition struct {
+// NetworkAttachmentDefinition represents net-attach-def of K8s NPWG spec
+type NetworkAttachmentDefinition struct {
 	metav1.TypeMeta `json:",inline"`
 	// Note that ObjectMeta is mandatory, as an object
 	// name is required

@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/archichris/multus-hc/checkpoint"
-	"github.com/archichris/multus-hc/logging"
-	"github.com/archichris/multus-hc/types"
+	"github.com/intel/multus-cni/checkpoint"
+	"github.com/intel/multus-cni/logging"
+	"github.com/intel/multus-cni/types"
 	"golang.org/x/net/context"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/kubernetes/pkg/kubelet/apis/podresources"

@@ -10,7 +10,7 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/archichris/multus-hc/types"
+	"github.com/intel/multus-cni/types"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sTypes "k8s.io/apimachinery/pkg/types"
@@ -44,7 +44,7 @@ var _ = BeforeSuite(func() {
 			{
 				"PodUID": "970a395d-bb3b-11e8-89df-408d5c537d23",
 				"ContainerName": "appcntr1",
-				"ResourceName": "intel.com/sriov_net_A",
+				"": "intel.com/sriov_net_A",
 				"DeviceIDs": [
 				"0000:03:02.3",
 				"0000:03:02.0"

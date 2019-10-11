@@ -36,9 +36,9 @@ import (
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	cniversion "github.com/containernetworking/cni/pkg/version"
 	"github.com/containernetworking/plugins/pkg/ns"
-	k8s "github.com/archichris/multus-hc/k8sclient"
-	"github.com/archichris/multus-hc/logging"
-	"github.com/archichris/multus-hc/types"
+	k8s "github.com/intel/multus-cni/k8sclient"
+	"github.com/intel/multus-cni/logging"
+	"github.com/intel/multus-cni/types"
 	"github.com/vishvananda/netlink"
 	"k8s.io/apimachinery/pkg/util/wait"
 )
@@ -95,8 +95,7 @@ func getIfname(delegate *types.DelegateNetConf, argif string, idx int) string {
 
 	// Otherwise construct a unique interface name from the delegate's
 	// position in the delegate list
-	// return fmt.Sprintf("net%d", idx)
-	return fmt.Sprintf("eth%d", idx)
+	return fmt.Sprintf("net%d", idx)
 }
 
 func saveDelegates(containerID, dataDir string, delegates []*types.DelegateNetConf) error {
@@ -516,6 +515,10 @@ func cmdDel(args *skel.CmdArgs, exec invoke.Exec, kubeClient k8s.KubeClient) err
 	rt := types.CreateCNIRuntimeConf(args, k8sArgs, "", in.RuntimeConfig)
 	return delPlugins(exec, args.IfName, in.Delegates, len(in.Delegates)-1, rt, in.BinDir)
 }
+
+// func main(){
+// 	k8s.Info()
+// }
 
 func main() {
 

@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: example-vxlan
+  labels:
+    app: example-vxvlan
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: example-vxvlan
+  template:
+    metadata:
+      labels:
+        app: example-vxvlan
+      annotations:
+        k8s.v1.cni.cncf.io/mynetworks: vxlan1
+    spec:
+      containers:
+      - name: example-vxvlan
+        image: busybox
+        command:
+        - sleep
+        - "1000000"
+        volumeMounts:
+        - mountPath: /var/multus
+          name: multus
+      volumes:
+      - hostPath:
+          path: /root/multus
+        name: multus
+
+

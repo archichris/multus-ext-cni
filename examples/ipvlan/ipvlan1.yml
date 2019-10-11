@@ -8,7 +8,7 @@ spec:
       "type": "ipvlan",
       "master": "eth1",
       "ipam": {
-        "type": "host-etcd",
+        "type": "multus-ipam",
         "ranges": [
           [
             { 

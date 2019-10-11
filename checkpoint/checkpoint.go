@@ -19,8 +19,8 @@ import (
 	"encoding/json"
 	"io/ioutil"
 
-	"github.com/archichris/multus-hc/logging"
-	"github.com/archichris/multus-hc/types"
+	"github.com/intel/multus-cni/logging"
+	"github.com/intel/multus-cni/types"
 	v1 "k8s.io/api/core/v1"
 )
 

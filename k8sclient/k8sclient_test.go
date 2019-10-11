@@ -23,11 +23,11 @@ import (
 	"testing"
 
 	types020 "github.com/containernetworking/cni/pkg/types/020"
-	testhelpers "github.com/archichris/multus-hc/testing"
-	testutils "github.com/archichris/multus-hc/testing"
+	testhelpers "github.com/intel/multus-cni/testing"
+	testutils "github.com/intel/multus-cni/testing"
 
 	"github.com/containernetworking/cni/pkg/skel"
-	"github.com/archichris/multus-hc/types"
+	"github.com/intel/multus-cni/types"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
