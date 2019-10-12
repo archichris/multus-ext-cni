@@ -99,10 +99,10 @@ func cmdAdd(args *skel.CmdArgs) error {
 
 	result.IPs, err = allocateIP(ipamConf, store, args.ContainerID, args.IfName)
 	if err != nil {
-		return logging.Errorf("allocateIP failed, %v",  err)
+		return logging.Errorf("allocateIP failed, %v", err)
 	}
 
-	result.Routes = ipamConf.Routes 
+	result.Routes = ipamConf.Routes
 
 	// s = fmt.Sprintf("result:%+v\n", result)
 	// f.WriteString(s)
@@ -146,7 +146,7 @@ func formRangeSets(origin []allocator.RangeSet, network string, unit uint32, sto
 		return nil, err
 	}
 
-	logging.Debugf("Cache: %v", c)
+	logging.Debugf("Origin: %v", origin)
 
 	// parse cache to net.IP format
 	var cacheRangeSet []allocator.SimpleRange
@@ -154,6 +154,7 @@ func formRangeSets(origin []allocator.RangeSet, network string, unit uint32, sto
 		pairIP := strings.Split(r, "-")
 		cacheRangeSet = append(cacheRangeSet, allocator.SimpleRange{net.ParseIP(pairIP[0]), net.ParseIP(pairIP[1])})
 	}
+	logging.Debugf("Cache: %v", cacheRangeSet)
 
 	// RangeSets to find
 	rss := []allocator.RangeSet{}
@@ -162,7 +163,7 @@ func formRangeSets(origin []allocator.RangeSet, network string, unit uint32, sto
 		for _, ro := range rso {
 			for _, cr := range cacheRangeSet {
 				if ro.Contains(cr.RangeStart) || ro.Contains(cr.RangeEnd) {
-					r := ro   
+					r := ro
 					if ip.Cmp(ro.RangeStart, cr.RangeStart) < 0 {
 						r.RangeStart = cr.RangeStart
 					}
@@ -178,7 +179,7 @@ func formRangeSets(origin []allocator.RangeSet, network string, unit uint32, sto
 	}
 	logging.Debugf("Rangesets: %v", rss)
 	return rss, nil
-} 
+}
 
 func allocateIP(ipamConf *allocator.IPAMConfig, store *disk.Store, containerID string, ifName string) ([]*current.IPConfig, error) {
 
@@ -187,8 +188,7 @@ func allocateIP(ipamConf *allocator.IPAMConfig, store *disk.Store, containerID s
 	if err != nil {
 		return nil, err
 	}
-	// glog.Info(rss)
-	reflashCache := false
+	logging.Debugf("allocate ip from %v", rss)
 	allocs := []*allocator.IPAllocator{}
 	IPs := []*current.IPConfig{}
 	for idx, rs := range rss {
@@ -197,53 +197,45 @@ func allocateIP(ipamConf *allocator.IPAMConfig, store *disk.Store, containerID s
 		var alloc *allocator.IPAllocator = nil
 		if len(rs) > 0 {
 			alloc = allocator.NewIPAllocator(&rs, store, idx)
+			logging.Debugf("allocator(%v, %v, %v) return v%", rs, store, idx, alloc)
 			ipConf, err = alloc.Get(containerID, ifName, nil)
 		} else {
-			err=fmt.Errorf("no IP addresses available in range set")
+			err = logging.Errorf("no IP addresses available in range set")
 		}
-		if err != nil {
-			if strings.Contains(err.Error(), "no IP addresses available in range set") {
+		//try most 3 times
+		for i := 0; i < 3; i++ {
+			if err != nil && strings.Contains(err.Error(), "no IP addresses available in range set") {
 				// apply IP slice from etcd if there is no available IP addresses
 				// todo use whole origin rangeset to apply ip pool
-				sIP, eIP, err := etcdv3.ApplyNewIPRange(ipamConf.Name, &ipamConf.Ranges[idx][0].Subnet, ipamConf.ApplyUnit)
+				var sIP, eIP net.IP
+				sIP, eIP, err = etcdv3.ApplyNewIPRange(ipamConf.Name, &ipamConf.Ranges[idx][0].Subnet, ipamConf.ApplyUnit)
+				logging.Debugf("apply new ip range(%v, %v, %v) return %v, %v, %v", ipamConf.Name, &ipamConf.Ranges[idx][0].Subnet, ipamConf.ApplyUnit, sIP, eIP, err)
 				if err == nil {
+					store.AppendRangeToCache(fmt.Sprintf("%s-%s", sIP.String(), eIP.String()))
 					r := ipamConf.Ranges[idx][0]
-				    r.RangeStart, r.RangeEnd = sIP, eIP
-					alloc := allocator.NewIPAllocator(&(allocator.RangeSet{r}), store, idx)
+					r.RangeStart, r.RangeEnd = sIP, eIP
+					alloc = allocator.NewIPAllocator(&(allocator.RangeSet{r}), store, idx)
+					logging.Debugf("NewIPAllocator(%v, %v, %v) return v%", allocator.RangeSet{r}, store, idx, alloc)
 					ipConf, err = alloc.Get(containerID, ifName, nil)
-					if err == nil {
-						rss[idx] = append(rss[idx], r)
-						reflashCache = true
-					} else {
-						// Deallocate all already allocated IPs
-						for _, alloc := range allocs {
-							_ = alloc.Release(containerID, ifName)
-						}
-						return nil, fmt.Errorf("failed to allocate for range %d: %v", idx, err)
+					if err != nil {
+						logging.Errorf("alloc ip from range %v failed, %v", r, err)
+						continue
 					}
-				} else {
-					// Deallocate all already allocated IPs
-					for _, alloc := range allocs {
-						_ = alloc.Release(containerID, ifName)
-					}
-					return nil, fmt.Errorf("failed to allocate for range %d: %v", idx, err)
 				}
-
 			}
+			break
+		}
+		if err != nil {
+			// Deallocate all already allocated IPs
+			for _, alloc := range allocs {
+				_ = alloc.Release(containerID, ifName)
+			}
+			return nil, logging.Errorf("failed to allocate for range %d: %v", idx, err)
 		}
 		allocs = append(allocs, alloc)
 		IPs = append(IPs, ipConf)
 	}
-	if reflashCache == true {
-		c := []string{}
-		for _, rt := range rss {
-			for _, r := range rt {
-				c = append(c, r.String())
-			}
-		}
-		// glog.Info(c)
-		store.FlashRangeSetToCache(c)
-	}
+
 	logging.Debugf("Return IPS: %v", IPs)
 	return IPs, nil
 }

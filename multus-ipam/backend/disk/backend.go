@@ -18,7 +18,7 @@ import (
 	"bufio"
 	"io"
 	"io/ioutil"
-	"log"
+	// "log"
 	"net"
 	"os"
 	"path/filepath"
@@ -226,7 +226,6 @@ func (s *Store) LoadRangeSetFromCache() ([]string, error) {
 	}
 	defer f.Close()
 	buf := bufio.NewReader(f)
-
 	for {
 		line, err := buf.ReadString('\n')
 		if err != nil {
@@ -235,13 +234,12 @@ func (s *Store) LoadRangeSetFromCache() ([]string, error) {
 			}
 			return nil, err
 		}
-		result = append(result, line)
+		result = append(result, strings.TrimRight(line,"\n"))
 	}
 }
 
 // FlashRangeSetToCache is used to rewrite ip range set "startIP:endIP" to cache file
 func (s *Store) FlashRangeSetToCache(rangeSet []string) error {
-	log.Println("FlashRangeSetToCache:\n", rangeSet)
 	fname := GetEscapedPath(s.dataDir, cacheName)
 	f, err := os.OpenFile(fname, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
@@ -254,3 +252,17 @@ func (s *Store) FlashRangeSetToCache(rangeSet []string) error {
 	}
 	return nil
 }
+func (s *Store) AppendRangeToCache(r string) error {
+	caches, err := s.LoadRangeSetFromCache()
+	if err != nil {
+		return err
+	}
+	for _, cr := range caches{
+		if cr == r {
+			return nil
+		}
+	}
+	caches = append(caches, r)
+	return s.FlashRangeSetToCache(caches)
+}
+
