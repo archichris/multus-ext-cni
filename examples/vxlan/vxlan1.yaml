@@ -20,11 +20,11 @@ spec:
         "gbp": false
       },
       "ipam": {
-        "type": "host-etcd",
+        "type": "multus-ipam",
         "ranges": [
           [
             { 
-              "subnet": "192.168.100.0/24"
+              "subnet": "192.168.109.0/24"
             }
           ]
         ],

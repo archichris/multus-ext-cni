@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net"
 	"os"
 	"strconv"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"github.com/containernetworking/cni/pkg/types"
+	"github.com/intel/multus-cni/logging"
 	"go.etcd.io/etcd/clientv3"
 	"go.etcd.io/etcd/pkg/transport"
 )
@@ -68,7 +68,7 @@ func ApplyNewIPRange(network string, subnet *types.IPNet, unit uint32) (net.IP, 
 		if err == nil {
 			id = string(data)
 		} else {
-			return nil, nil, fmt.Errorf("empty hostname")
+			return nil, nil, logging.Errorf("empty hostname")
 			// only for test
 			// rand.Seed(10000)
 			// id = strconv.Itoa(rand.Intn(10000))
@@ -78,20 +78,18 @@ func ApplyNewIPRange(network string, subnet *types.IPNet, unit uint32) (net.IP, 
 
 	data, err := ioutil.ReadFile(etcdCfgDir + "/etcd.conf")
 	if err != nil {
-		log.Println(err)
-		return nil, nil, err
+		return nil, nil, logging.Errorf("read %v/etcd.conf failed, %v", etcdCfgDir, err)
 	}
 	var etcdCfg EtcdJSONCfg
 	err = json.Unmarshal(data, &etcdCfg)
 	if err != nil {
-		log.Println(err)
 		return nil, nil, err
 	}
 
 	endpoints := strings.Split(etcdCfg.Endpoints, ",")
 
 	if len(endpoints) == 0 {
-		return nil, nil, fmt.Errorf("no etcd endpoints")
+		return nil, nil, logging.Errorf("no etcd endpoints")
 	}
 
 	var cli *clientv3.Client
@@ -104,8 +102,7 @@ func ApplyNewIPRange(network string, subnet *types.IPNet, unit uint32) (net.IP, 
 		}
 		tlsConfig, err := tlsInfo.ClientConfig()
 		if err != nil {
-			log.Println(err)
-			return nil, nil, err
+			return nil, nil, logging.Errorf("tlsInfo.ClientConfig failed, %v", err)
 		}
 		cli, err = clientv3.New(clientv3.Config{
 			Endpoints:   endpoints,
@@ -113,8 +110,7 @@ func ApplyNewIPRange(network string, subnet *types.IPNet, unit uint32) (net.IP, 
 			TLS:         tlsConfig,
 		})
 		if err != nil {
-			log.Println(err)
-			return nil, nil, err
+			return nil, nil, logging.Errorf("create etcd client failed, %v", err)
 		}
 	} else {
 		cli, err = clientv3.New(clientv3.Config{
@@ -122,8 +118,7 @@ func ApplyNewIPRange(network string, subnet *types.IPNet, unit uint32) (net.IP, 
 			DialTimeout: dialTimeout,
 		})
 		if err != nil {
-			log.Println(err)
-			return nil, nil, err
+			return nil, nil, logging.Errorf("create etcd client failed, %v", err)
 		}
 	}
 
@@ -132,39 +127,39 @@ func ApplyNewIPRange(network string, subnet *types.IPNet, unit uint32) (net.IP, 
 	keyDir := rootKeyDir + "/" + network
 
 	// Get free IP range looply
+	var lastErr error
 	for i := 1; i <= maxApplyTry; i++ {
 		IPBegin, IPEnd, err := GetFreeIPRange(cli, keyDir, subnet, unit)
 		if err != nil {
-			log.Println(err)
-			//try 3 times
+			lastErr = logging.Errorf("create etcd client failed, %v", err)
 			continue
 		}
 		claimKey := fmt.Sprintf(keyTemplate, IPBegin, IPEnd)
 
 		getResp, err := cli.Get(context.TODO(), keyDir+"/"+claimKey)
 		if len(getResp.Kvs) > 0 {
+			lastErr = logging.Errorf("%v/%v exist", keyDir, claimKey)
 			continue
 		}
 
 		// Claim the ownship of the IP range
 		_, err = cli.Put(context.TODO(), keyDir+"/"+claimKey, id)
 		if err != nil {
-			log.Println(err)
+			lastErr = logging.Errorf("write etcd failed, %v", err)
 			continue
 		}
 		// Verify the ownship of the IP range
-	   
-		for i := 1; i <= maxApplyTry; i++{
+
+		for i := 1; i <= maxApplyTry; i++ {
 			getResp, err = cli.Get(context.TODO(), keyDir+"/"+claimKey)
 			if (err != nil) || (len(getResp.Kvs) == 0) {
-				log.Println(err)
+				lastErr = logging.Errorf("read etcd failed, %v", err)
 				time.Sleep(time.Duration(1) * time.Second)
 				continue
 			}
 		}
-		if (err != nil) || (len(getResp.Kvs) == 0)  {
-			log.Println(err)
-			return nil, nil, err
+		if (err != nil) || (len(getResp.Kvs) == 0) {
+			return nil, nil, logging.Errorf("Operate etcd failed, %v", err)
 		}
 		// if putResp.Header.Revision == getResp.Header.Revision {
 		if string(getResp.Kvs[0].Value) == id {
@@ -175,7 +170,7 @@ func ApplyNewIPRange(network string, subnet *types.IPNet, unit uint32) (net.IP, 
 			return beginIP, endIP, nil
 		}
 	}
-	return nil, nil, errors.New("apply new IP range failed")
+	return nil, nil, lastErr
 }
 
 // GetFreeIPRange is used to find a free IP range
@@ -187,6 +182,7 @@ func GetFreeIPRange(cli *clientv3.Client, keyDir string, subnet *types.IPNet, un
 	getResp, err := cli.Get(ctx, keyDir, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend))
 	cancel()
 	if err != nil {
+		logging.Errorf("cli.Get(%v) failed, %v", keyDir, err)
 		return 0, 0, err
 	}
 	var IPBegin, IPEnd uint32

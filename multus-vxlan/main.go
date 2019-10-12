@@ -16,55 +16,69 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"runtime"
 
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/version"
 	bv "github.com/containernetworking/plugins/pkg/utils/buildversion"
+	"github.com/intel/multus-cni/logging"
 	"github.com/vishvananda/netlink"
 )
 
 type NetConf struct {
 	types.NetConf
 	BridgeNetConf
-	Vxlan VxlanNetConf  `json:"vxlan"`
+	Vxlan    VxlanNetConf `json:"vxlan"`
+	LogFile  string       `json:"logFile"`
+	LogLevel string       `json:"logLevel"`
 }
 
 func init() {
-
 	// this ensures that main runs only on main thread (thread group leader).
 	// since namespace ops (unshare, setns) are done for a single thread, we
 	runtime.LockOSThread()
+	//for debug
+	logging.SetLogFile("/tmp/multus-vxlan.log")
+	logging.SetLogLevel("debug")
 }
 
 func loadNetConf(bytes []byte) (*NetConf, string, error) {
 	n := &NetConf{}
 	if err := json.Unmarshal(bytes, n); err != nil {
-		return nil, "", fmt.Errorf("failed to load netconf: %v", err)
+		return nil, "", logging.Errorf("Unmarshal failed, %v", err)
+	}
+	// Logging
+	if n.LogFile != "" {
+		logging.SetLogFile(n.LogFile)
+	}
+	if n.LogLevel != "" {
+		logging.SetLogLevel(n.LogLevel)
 	}
 	return n, n.CNIVersion, nil
 }
 
 func cmdAdd(args *skel.CmdArgs) error {
-
+	logging.Debugf("%v", args.StdinData)
 	n, cniVersion, err := loadNetConf(args.StdinData)
 	if err != nil {
 		return err
 	}
 
 	br, result, err := bridgeAdd(args, n)
+	if err != nil {
+		return logging.Errorf("bridgeAdd failed, %v", err)
+	}
 
 	vxlan, err := setupVxlan(&(n.Vxlan))
 	if err != nil {
-		return err
+		return logging.Errorf("setupVxlan failed, %v", err)
 	}
 
 	if vxlan.Attrs().MasterIndex != br.Attrs().Index {
 		err = netlink.LinkSetMaster(vxlan, br)
 		if err != nil {
-			return err
+			return logging.Errorf("LinkSetMaster failed, %v", err)
 		}
 	}
 	result.CNIVersion = cniVersion

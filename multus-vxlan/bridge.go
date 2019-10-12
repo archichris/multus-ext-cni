@@ -37,8 +37,6 @@ import (
 // For testcases to force an error after IPAM has been performed
 var debugPostIPAMError error
 
-const defaultBrName = "cni0"
-
 type BridgeNetConf struct {
 	// BrName       string `json:"bridge"`
 	IsGW         bool `json:"isGateway"`
@@ -56,16 +54,6 @@ type gwInfo struct {
 	family            int
 	defaultRouteFound bool
 }
-
-// func loadNetConf(bytes []byte) (*NetConf, string, error) {
-// 	n := &NetConf{
-// 		BrName: defaultBrName,
-// 	}
-// 	if err := json.Unmarshal(bytes, n); err != nil {
-// 		return nil, "", fmt.Errorf("failed to load netconf: %v", err)
-// 	}
-// 	return n, n.CNIVersion, nil
-// }
 
 // calcGateways processes the results from the IPAM plugin and does the
 // following for each IP family:
@@ -357,7 +345,7 @@ func enableIPForward(family int) error {
 }
 
 func bridgeAdd(args *skel.CmdArgs, n *NetConf) (*netlink.Bridge, *current.Result, error) {
-	
+
 	var success bool = false
 
 	isLayer3 := n.IPAM.Type != ""

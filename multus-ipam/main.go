@@ -25,6 +25,7 @@ import (
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/types/current"
 	"github.com/containernetworking/cni/pkg/version"
+	"github.com/containernetworking/plugins/pkg/ip"
 	bv "github.com/containernetworking/plugins/pkg/utils/buildversion"
 	"github.com/intel/multus-cni/logging"
 	"github.com/intel/multus-cni/multus-ipam/backend/allocator"
@@ -43,15 +44,6 @@ func init() {
 func main() {
 	skel.PluginMain(cmdAdd, cmdCheck, cmdDel, version.All, bv.BuildString("multus-ipam"))
 }
-
-// func loadNetConf(bytes []byte) (*types.NetConf, string, error) {
-// 	n := &types.NetConf{}
-// 	if err := json.Unmarshal(bytes, n); err != nil {
-// 		return nil, "", fmt.Errorf("failed to load netconf: %v", err)
-// 	}
-
-// 	return n, n.CNIVersion, nil
-// }
 
 func cmdCheck(args *skel.CmdArgs) error {
 
@@ -107,10 +99,10 @@ func cmdAdd(args *skel.CmdArgs) error {
 
 	result.IPs, err = allocateIP(ipamConf, store, args.ContainerID, args.IfName)
 	if err != nil {
-		return logging.Errorf("allocateIP(%v, %v, %v, %v) failed, %v", ipamConf, store, args.ContainerID, args.IfName, err)
+		return logging.Errorf("allocateIP failed, %v",  err)
 	}
 
-	result.Routes = ipamConf.Routes
+	result.Routes = ipamConf.Routes 
 
 	// s = fmt.Sprintf("result:%+v\n", result)
 	// f.WriteString(s)
@@ -154,7 +146,7 @@ func formRangeSets(origin []allocator.RangeSet, network string, unit uint32, sto
 		return nil, err
 	}
 
-	// glog.Info(c)
+	logging.Debugf("Cache: %v", c)
 
 	// parse cache to net.IP format
 	var cacheRangeSet []allocator.SimpleRange
@@ -163,47 +155,30 @@ func formRangeSets(origin []allocator.RangeSet, network string, unit uint32, sto
 		cacheRangeSet = append(cacheRangeSet, allocator.SimpleRange{net.ParseIP(pairIP[0]), net.ParseIP(pairIP[1])})
 	}
 
-	// flashCache := false
 	// RangeSets to find
 	rss := []allocator.RangeSet{}
-	for _, oriRs := range origin {
+	for _, rso := range origin {
 		rs := allocator.RangeSet{}
-		for _, cacheRange := range cacheRangeSet {
-			if oriRange, _ := oriRs.RangeFor(cacheRange.RangeStart); oriRange != nil {
-				r := oriRange
-				r.RangeStart, r.RangeEnd = cacheRange.RangeStart, cacheRange.RangeEnd
-				rs = append(rs, *r)
+		for _, ro := range rso {
+			for _, cr := range cacheRangeSet {
+				if ro.Contains(cr.RangeStart) || ro.Contains(cr.RangeEnd) {
+					r := ro   
+					if ip.Cmp(ro.RangeStart, cr.RangeStart) < 0 {
+						r.RangeStart = cr.RangeStart
+					}
+					if ip.Cmp(ro.RangeEnd, cr.RangeEnd) > 0 {
+						r.RangeEnd = cr.RangeEnd
+					}
+					rs = append(rs, r)
+				}
+
 			}
 		}
-
-		// no exist range match requested subnet
-		if len(rs) == 0 {
-			// apply ip slice from etcd
-			// sIP, eIP, err := etcdv3.ApplyIPRange(network, &oriRs[0].Subnet, unit)
-			// if err != nil {
-			// 	return nil, err
-			// }
-			// flashCache = true
-			// r := oriRs[0]
-			// r.RangeStart, r.RangeEnd = sIP, eIP
-			// rs = append(rs, r)
-			continue
-		} else {
-			rss = append(rss, rs)
-		}
-
+		rss = append(rss, rs)
 	}
-	// if flashCache == true {
-	// 	c := []string{}
-	// 	for _, rt := range rss {
-	// 		for _, r := range rt {
-	// 			c = append(c, r.String())
-	// 		}
-	// 	}
-	// 	store.FlashRangeSetToCache(c)
-	// }
+	logging.Debugf("Rangesets: %v", rss)
 	return rss, nil
-}
+} 
 
 func allocateIP(ipamConf *allocator.IPAMConfig, store *disk.Store, containerID string, ifName string) ([]*current.IPConfig, error) {
 
@@ -216,16 +191,24 @@ func allocateIP(ipamConf *allocator.IPAMConfig, store *disk.Store, containerID s
 	reflashCache := false
 	allocs := []*allocator.IPAllocator{}
 	IPs := []*current.IPConfig{}
-	for idx, rangeset := range rss {
-		alloc := allocator.NewIPAllocator(&rangeset, store, idx)
-		ipConf, err := alloc.Get(containerID, ifName, nil)
+	for idx, rs := range rss {
+		var err error = nil
+		var ipConf *current.IPConfig = nil
+		var alloc *allocator.IPAllocator = nil
+		if len(rs) > 0 {
+			alloc = allocator.NewIPAllocator(&rs, store, idx)
+			ipConf, err = alloc.Get(containerID, ifName, nil)
+		} else {
+			err=fmt.Errorf("no IP addresses available in range set")
+		}
 		if err != nil {
 			if strings.Contains(err.Error(), "no IP addresses available in range set") {
 				// apply IP slice from etcd if there is no available IP addresses
-				sIP, eIP, err := etcdv3.ApplyNewIPRange(ipamConf.Name, &rangeset[0].Subnet, ipamConf.ApplyUnit)
-				r := rangeset[0]
-				r.RangeStart, r.RangeEnd = sIP, eIP
+				// todo use whole origin rangeset to apply ip pool
+				sIP, eIP, err := etcdv3.ApplyNewIPRange(ipamConf.Name, &ipamConf.Ranges[idx][0].Subnet, ipamConf.ApplyUnit)
 				if err == nil {
+					r := ipamConf.Ranges[idx][0]
+				    r.RangeStart, r.RangeEnd = sIP, eIP
 					alloc := allocator.NewIPAllocator(&(allocator.RangeSet{r}), store, idx)
 					ipConf, err = alloc.Get(containerID, ifName, nil)
 					if err == nil {
@@ -261,5 +244,6 @@ func allocateIP(ipamConf *allocator.IPAMConfig, store *disk.Store, containerID s
 		// glog.Info(c)
 		store.FlashRangeSetToCache(c)
 	}
+	logging.Debugf("Return IPS: %v", IPs)
 	return IPs, nil
 }
