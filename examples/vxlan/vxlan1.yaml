@@ -13,7 +13,6 @@ spec:
       "hairpinMode": true,
       "vlan": 0,
       "vxlan":{
-        "ifName": "eth1",
         "vxlanId": 201,
         "port": 8472,
         "learning": false,
@@ -24,7 +23,8 @@ spec:
         "ranges": [
           [
             { 
-              "subnet": "192.168.109.0/24"
+              "subnet": "192.168.109.0/24",
+              "gateway": "192.168.109.1"
             }
           ]
         ],

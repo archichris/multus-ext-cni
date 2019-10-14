@@ -20,14 +20,16 @@ import (
 	"net"
 
 	"github.com/containernetworking/cni/pkg/types"
+	types020 "github.com/containernetworking/cni/pkg/types/020"
 	"github.com/intel/multus-cni/logging"
-    "github.com/containernetworking/cni/pkg/types/020"
 )
 
 // The top-level network config - IPAM plugins are passed the full configuration
 // of the calling plugin, not just the IPAM section.
 type Net struct {
 	Name          string      `json:"name"`
+	Type          string      `json:"type"`
+	Master        string      `json:"master"`
 	CNIVersion    string      `json:"cniVersion"`
 	IPAM          *IPAMConfig `json:"ipam"`
 	RuntimeConfig struct {    // The capability arg
@@ -46,6 +48,8 @@ type Net struct {
 type IPAMConfig struct {
 	*Range
 	Name       string
+	NetType    string
+	Master     string
 	Type       string         `json:"type"`
 	Routes     []*types.Route `json:"routes"`
 	DataDir    string         `json:"dataDir"`
@@ -173,6 +177,8 @@ func LoadIPAMConfig(bytes []byte, envArgs string) (*IPAMConfig, string, error) {
 
 	// Copy net name into IPAM so not to drag Net struct around
 	n.IPAM.Name = n.Name
+	n.IPAM.NetType = n.Type
+	n.IPAM.Master = n.Master
 
 	return n.IPAM, n.CNIVersion, nil
 }

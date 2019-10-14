@@ -30,10 +30,10 @@ import (
 	"github.com/intel/multus-cni/logging"
 	"github.com/intel/multus-cni/multus-ipam/backend/allocator"
 	"github.com/intel/multus-cni/multus-ipam/backend/disk"
-	"github.com/intel/multus-cni/multus-ipam/backend/etcdv3"
+	"github.com/intel/multus-cni/multus-ipam/backend/etcdv3cli"
 )
 
-const defaultApplyUnit = uint32(16)
+const defaultApplyUnit = uint32(4)
 
 func init() {
 	//for debug
@@ -195,6 +195,8 @@ func allocateIP(ipamConf *allocator.IPAMConfig, store *disk.Store, containerID s
 		var err error = nil
 		var ipConf *current.IPConfig = nil
 		var alloc *allocator.IPAllocator = nil
+		var value string
+
 		if len(rs) > 0 {
 			alloc = allocator.NewIPAllocator(&rs, store, idx)
 			logging.Debugf("allocator(%v, %v, %v) return v%", rs, store, idx, alloc)
@@ -207,8 +209,12 @@ func allocateIP(ipamConf *allocator.IPAMConfig, store *disk.Store, containerID s
 			if err != nil && strings.Contains(err.Error(), "no IP addresses available in range set") {
 				// apply IP slice from etcd if there is no available IP addresses
 				// todo use whole origin rangeset to apply ip pool
+				value, err = etcdv3cli.IpamFormValue(ipamConf.Master)
+				if err != nil {
+					return nil, logging.Errorf("generate vlaue from %v failed, %v", value, err)
+				}
 				var sIP, eIP net.IP
-				sIP, eIP, err = etcdv3.ApplyNewIPRange(ipamConf.Name, &ipamConf.Ranges[idx][0].Subnet, ipamConf.ApplyUnit)
+				sIP, eIP, err = etcdv3cli.IpamApplyIPRange(ipamConf.NetType+"/"+ipamConf.Name, &ipamConf.Ranges[idx][0].Subnet, ipamConf.ApplyUnit, value)
 				logging.Debugf("apply new ip range(%v, %v, %v) return %v, %v, %v", ipamConf.Name, &ipamConf.Ranges[idx][0].Subnet, ipamConf.ApplyUnit, sIP, eIP, err)
 				if err == nil {
 					store.AppendRangeToCache(fmt.Sprintf("%s-%s", sIP.String(), eIP.String()))

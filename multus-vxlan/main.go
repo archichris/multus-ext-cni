@@ -28,6 +28,7 @@ import (
 
 type NetConf struct {
 	types.NetConf
+	Master string `json:"master"`
 	BridgeNetConf
 	Vxlan    VxlanNetConf `json:"vxlan"`
 	LogFile  string       `json:"logFile"`
@@ -55,6 +56,7 @@ func loadNetConf(bytes []byte) (*NetConf, string, error) {
 	if n.LogLevel != "" {
 		logging.SetLogLevel(n.LogLevel)
 	}
+	n.Vxlan.Master = n.Master
 	return n, n.CNIVersion, nil
 }
 
@@ -83,6 +85,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 	}
 	result.CNIVersion = cniVersion
 
+	//Todo write neighbor to etcd /vxlan/<netname>/arp/<mainip>-<id>/<mac>:<ip>
 	return types.PrintResult(result, cniVersion)
 }
 
