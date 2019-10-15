@@ -19,6 +19,7 @@ import (
 	"github.com/intel/multus-cni/dev"
 	"github.com/intel/multus-cni/etcdv3"
 	"github.com/intel/multus-cni/logging"
+	"github.com/intel/multus-cni/multus-ipam/backend/allocator"
 )
 
 var (
@@ -28,14 +29,15 @@ var (
 	maxApplyTry    = 3
 )
 
-type Master struct {
+type IfInfo struct {
 	Name string `json:"name"`
 	IP   string `json:"ip"`
 	MAC  string `json:"mac"`
 }
 
 type LeaseV struct {
-	M Master `json:"master"`
+	M     *IfInfo `json:"master"`
+	Vxlan *IfInfo `json:"vxlan"`
 }
 
 type LeaseK struct {
@@ -49,8 +51,14 @@ type Lease struct {
 }
 
 // IpamApplyIPRange is used to apply IP range from ectd
-func IpamApplyIPRange(network string, subnet *types.IPNet, n uint32, value string) (net.IP, net.IP, error) {
-	IPStart, IPEnd, err := ipamApplyIPRangeUint32(network, subnet, n, value)
+func IpamApplyIPRange(netConf *allocator.Net, subnet *types.IPNet) (net.IP, net.IP, error) {
+	value, err := IpamFormValue(netConf)
+	if err != nil {
+		return nil, nil, err
+	}
+	logging.Debugf("value for etcd: %s", value)
+
+	IPStart, IPEnd, err := ipamApplyIPRangeUint32(netConf.Type+"/"+netConf.Name, subnet, netConf.IPAM.ApplyUnit, value)
 	if err == nil {
 		IPs := make(net.IP, 4)
 		IPe := make(net.IP, 4)
@@ -144,27 +152,39 @@ func ipamGetFreeIPRange(cli *clientv3.Client, keyDir string, subnet *types.IPNet
 	return 0, 0, logging.Errorf("There is no available IP")
 }
 
-func IpamFormValue(master string) (string, error) {
-	keyValue := LeaseV{M: Master{IP: string("0.0.0.0"), MAC: string("0:0:0:0:0:0"), Name: "loop"}}
-	for {
-		if len(master) != 0 {
-			iface, err := net.InterfaceByName(master)
-			if err != nil {
-				break
-			}
-
-			ifaceAddr, err := dev.GetIfaceIP4Addr(iface)
-			if err != nil {
-				break
-			}
-			keyValue.M.IP = ifaceAddr.String()
-			keyValue.M.MAC = iface.HardwareAddr.String()
-			keyValue.M.Name = master
-		}
-		break
+func IpamGenIfInfo(ifName string) *IfInfo {
+	i := IfInfo{IP: string("0.0.0.0"), MAC: string("00:00:00:00:00:00"), Name: ""}
+	if len(ifName) == 0 {
+		logging.Errorf("empty interface name")
+		return &i
 	}
+	i.Name = ifName
+	iface, err := net.InterfaceByName(ifName)
+	if err != nil {
+		logging.Verbosef("get interface %s failed, %s", ifName, err)
+		return &i
+	}
+	i.MAC = iface.HardwareAddr.String()
+	ifaceAddr, err := dev.GetIfaceIP4Addr(iface)
+	if err != nil {
+		logging.Verbosef("GetIfaceIP4Addr %s failed, %s", ifName, err)
+		return &i
+	}
+	i.IP = ifaceAddr.String()
+	return &i
+}
 
-	value, err := json.Marshal(keyValue)
+func IpamFormValue(netConf *allocator.Net) (string, error) {
+	kv := &LeaseV{M: IpamGenIfInfo(netConf.Master)}
+
+	if netConf.Type == "multus-vxlan" {
+		vx := fmt.Sprintf("multus.%v.%v", netConf.Master, netConf.Vxlan.VxlanId)
+		logging.Debugf("Try to get info of vxlan %v", vx)
+		kv.Vxlan = IpamGenIfInfo(vx)
+	}
+	logging.Debugf("Type:%v,%v", netConf.Type, kv)
+
+	value, err := json.Marshal(kv)
 	if err != nil {
 		return "", err
 	}

@@ -47,10 +47,12 @@ func main() {
 
 func cmdCheck(args *skel.CmdArgs) error {
 
-	ipamConf, _, err := allocator.LoadIPAMConfig(args.StdinData, args.Args)
+	netConf, _, err := allocator.LoadIPAMConfig(args.StdinData, args.Args)
 	if err != nil {
 		return err
 	}
+
+	ipamConf := netConf.IPAM
 
 	// Look to see if there is at least one IP address allocated to the container
 	// in the data dir, irrespective of what that address actually is
@@ -69,11 +71,13 @@ func cmdCheck(args *skel.CmdArgs) error {
 }
 
 func cmdAdd(args *skel.CmdArgs) error {
-	ipamConf, confVersion, err := allocator.LoadIPAMConfig(args.StdinData, args.Args)
+	netConf, confVersion, err := allocator.LoadIPAMConfig(args.StdinData, args.Args)
 	logging.Debugf("%v", args)
 	if err != nil {
 		return logging.Errorf("LoadIPAMConfig failed, %v", err)
 	}
+
+	ipamConf := netConf.IPAM
 
 	result := &current.Result{}
 
@@ -97,7 +101,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 	}
 	defer store.Close()
 
-	result.IPs, err = allocateIP(ipamConf, store, args.ContainerID, args.IfName)
+	result.IPs, err = allocateIP(netConf, store, args.ContainerID, args.IfName)
 	if err != nil {
 		return logging.Errorf("allocateIP failed, %v", err)
 	}
@@ -111,10 +115,12 @@ func cmdAdd(args *skel.CmdArgs) error {
 }
 
 func cmdDel(args *skel.CmdArgs) error {
-	ipamConf, _, err := allocator.LoadIPAMConfig(args.StdinData, args.Args)
+	netConf, _, err := allocator.LoadIPAMConfig(args.StdinData, args.Args)
 	if err != nil {
 		return err
 	}
+
+	ipamConf := netConf.IPAM
 
 	store, err := disk.New(ipamConf.Name, ipamConf.DataDir)
 	if err != nil {
@@ -181,7 +187,9 @@ func formRangeSets(origin []allocator.RangeSet, network string, unit uint32, sto
 	return rss, nil
 }
 
-func allocateIP(ipamConf *allocator.IPAMConfig, store *disk.Store, containerID string, ifName string) ([]*current.IPConfig, error) {
+func allocateIP(netConf *allocator.Net, store *disk.Store, containerID string, ifName string) ([]*current.IPConfig, error) {
+
+	ipamConf := netConf.IPAM
 
 	// genereate the ip ranges that can be allocated locally
 	rss, err := formRangeSets(ipamConf.Ranges, ipamConf.Name, ipamConf.ApplyUnit, store)
@@ -195,7 +203,6 @@ func allocateIP(ipamConf *allocator.IPAMConfig, store *disk.Store, containerID s
 		var err error = nil
 		var ipConf *current.IPConfig = nil
 		var alloc *allocator.IPAllocator = nil
-		var value string
 
 		if len(rs) > 0 {
 			alloc = allocator.NewIPAllocator(&rs, store, idx)
@@ -209,13 +216,14 @@ func allocateIP(ipamConf *allocator.IPAMConfig, store *disk.Store, containerID s
 			if err != nil && strings.Contains(err.Error(), "no IP addresses available in range set") {
 				// apply IP slice from etcd if there is no available IP addresses
 				// todo use whole origin rangeset to apply ip pool
-				value, err = etcdv3cli.IpamFormValue(ipamConf.Master)
-				if err != nil {
-					return nil, logging.Errorf("generate vlaue from %v failed, %v", value, err)
-				}
+				// value, err = etcdv3cli.IpamFormValue(netConf)
+				// if err != nil {
+				// 	return nil, logging.Errorf("generate vlaue from %v failed, %v", value, err)
+				// }
 				var sIP, eIP net.IP
-				sIP, eIP, err = etcdv3cli.IpamApplyIPRange(ipamConf.NetType+"/"+ipamConf.Name, &ipamConf.Ranges[idx][0].Subnet, ipamConf.ApplyUnit, value)
-				logging.Debugf("apply new ip range(%v, %v, %v) return %v, %v, %v", ipamConf.Name, &ipamConf.Ranges[idx][0].Subnet, ipamConf.ApplyUnit, sIP, eIP, err)
+				// sIP, eIP, err = etcdv3cli.IpamApplyIPRange(netConf.Type+"/"+netConf.Name, &ipamConf.Ranges[idx][0].Subnet, ipamConf.ApplyUnit, value)
+				sIP, eIP, err = etcdv3cli.IpamApplyIPRange(netConf, &ipamConf.Ranges[idx][0].Subnet)
+				// logging.Debugf("apply new ip range(%v, %v, %v) return %v, %v, %v", ipamConf.Name, &ipamConf.Ranges[idx][0].Subnet, ipamConf.ApplyUnit, sIP, eIP, err)
 				if err == nil {
 					store.AppendRangeToCache(fmt.Sprintf("%s-%s", sIP.String(), eIP.String()))
 					r := ipamConf.Ranges[idx][0]

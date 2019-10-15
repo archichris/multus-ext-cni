@@ -24,8 +24,8 @@ import (
 )
 
 func AddFDB(index int, mac net.HardwareAddr, ip net.IP) error {
-	logging.Debugf("calling AddFDB to %v: %v, %v", index, mac, ip)
-	return netlink.NeighSet(&netlink.Neigh{
+	logging.Debugf("calling NeighAppend to %v: %v, %v", index, mac, ip)
+	return netlink.NeighAppend(&netlink.Neigh{
 		LinkIndex:    index,
 		State:        netlink.NUD_PERMANENT,
 		Family:       syscall.AF_BRIDGE,

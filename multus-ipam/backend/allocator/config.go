@@ -26,13 +26,15 @@ import (
 
 // The top-level network config - IPAM plugins are passed the full configuration
 // of the calling plugin, not just the IPAM section.
+
 type Net struct {
-	Name          string      `json:"name"`
-	Type          string      `json:"type"`
-	Master        string      `json:"master"`
-	CNIVersion    string      `json:"cniVersion"`
-	IPAM          *IPAMConfig `json:"ipam"`
-	RuntimeConfig struct {    // The capability arg
+	Name          string        `json:"name"`
+	Type          string        `json:"type"`
+	Master        string        `json:"master"`
+	CNIVersion    string        `json:"cniVersion"`
+	IPAM          *IPAMConfig   `json:"ipam"`
+	Vxlan         *VxlanNetConf `json:"vxlan"`
+	RuntimeConfig struct {      // The capability arg
 		IPRanges []RangeSet `json:"ipRanges,omitempty"`
 	} `json:"runtimeConfig,omitempty"`
 	Args *struct {
@@ -42,14 +44,21 @@ type Net struct {
 	LogLevel string `json:"logLevel"`
 }
 
+type VxlanNetConf struct {
+	VxlanId  int  `json:"vxlanId"`
+	Port     int  `json:"port"`
+	Learning bool `json:"learning"`
+	GBP      bool `json:"gbp"`
+}
+
 // IPAMConfig represents the IP related network configuration.
 // This nests Range because we initially only supported a single
 // range directly, and wish to preserve backwards compatability
 type IPAMConfig struct {
 	*Range
-	Name       string
-	NetType    string
-	Master     string
+	Name string
+	// NetType    string
+	// Master     string
 	Type       string         `json:"type"`
 	Routes     []*types.Route `json:"routes"`
 	DataDir    string         `json:"dataDir"`
@@ -84,7 +93,7 @@ type SimpleRange struct {
 }
 
 // NewIPAMConfig creates a NetworkConfig from the given network name.
-func LoadIPAMConfig(bytes []byte, envArgs string) (*IPAMConfig, string, error) {
+func LoadIPAMConfig(bytes []byte, envArgs string) (*Net, string, error) {
 	n := Net{}
 	if err := json.Unmarshal(bytes, &n); err != nil {
 		return nil, "", err
@@ -177,8 +186,8 @@ func LoadIPAMConfig(bytes []byte, envArgs string) (*IPAMConfig, string, error) {
 
 	// Copy net name into IPAM so not to drag Net struct around
 	n.IPAM.Name = n.Name
-	n.IPAM.NetType = n.Type
-	n.IPAM.Master = n.Master
+	// n.IPAM.NetType = n.Type
+	// n.IPAM.Master = n.Master
 
-	return n.IPAM, n.CNIVersion, nil
+	return &n, n.CNIVersion, nil
 }

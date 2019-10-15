@@ -5,7 +5,7 @@ metadata:
   labels:
     app: example-vxvlan
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: example-vxvlan
@@ -16,6 +16,16 @@ spec:
       annotations:
         k8s.v1.cni.cncf.io/mynetworks: vxlan1
     spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values: 
+                - example-vxvlan
+            topologyKey: "kubernetes.io/hostname"
       containers:
       - name: example-vxvlan
         image: busybox

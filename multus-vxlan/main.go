@@ -61,20 +61,21 @@ func loadNetConf(bytes []byte) (*NetConf, string, error) {
 }
 
 func cmdAdd(args *skel.CmdArgs) error {
-	logging.Debugf("%v", args.StdinData)
 	n, cniVersion, err := loadNetConf(args.StdinData)
 	if err != nil {
 		return err
 	}
-
-	br, result, err := bridgeAdd(args, n)
-	if err != nil {
-		return logging.Errorf("bridgeAdd failed, %v", err)
-	}
+	logging.Debugf("%v", n)
 
 	vxlan, err := setupVxlan(&(n.Vxlan))
 	if err != nil {
 		return logging.Errorf("setupVxlan failed, %v", err)
+	}
+
+	// var result *current.Result
+	br, result, err := bridgeAdd(args, n)
+	if err != nil {
+		return logging.Errorf("bridgeAdd failed, %v", err)
 	}
 
 	if vxlan.Attrs().MasterIndex != br.Attrs().Index {
@@ -83,6 +84,22 @@ func cmdAdd(args *skel.CmdArgs) error {
 			return logging.Errorf("LinkSetMaster failed, %v", err)
 		}
 	}
+
+	if err := netlink.LinkSetUp(vxlan); err != nil {
+		return logging.Errorf("Enable vxlan failed")
+	}
+
+	if n.IPAM.Type != "" {
+		for _, i := range result.IPs {
+			err := netlink.RouteAdd(&netlink.Route{LinkIndex: vxlan.Attrs().Index, Scope: netlink.SCOPE_HOST, Dst: &i.Address})
+			if err != nil {
+				logging.Errorf("RouteAdd %v Dst:%v, failed, %v", vxlan.Attrs().Index, i.Address, err)
+			} else {
+				logging.Verbosef("RouteAdd %v Dst:%v successed", vxlan.Attrs().Index, i.Address)
+			}
+		}
+	}
+
 	result.CNIVersion = cniVersion
 
 	//Todo write neighbor to etcd /vxlan/<netname>/arp/<mainip>-<id>/<mac>:<ip>
@@ -107,5 +124,7 @@ func cmdCheck(args *skel.CmdArgs) error {
 }
 
 func main() {
-	skel.PluginMain(cmdAdd, cmdCheck, cmdDel, version.All, bv.BuildString("multus-vxlan"))
+	// skel.PluginMain(cmdAdd, cmdCheck, cmdDel, version.All, bv.BuildString("multus-vxlan"))
+	skel.PluginMain(cmdAdd, cmdCheck, cmdDel, version.PluginSupports("0.3.0", "0.3.1", "0.4.0"), bv.BuildString("multus-vxlan"))
+
 }

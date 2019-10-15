@@ -20,14 +20,18 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/coreos/etcd/clientv3"
+	"github.com/intel/multus-cni/dev"
 	"github.com/intel/multus-cni/etcdv3"
 	"github.com/intel/multus-cni/logging"
 	"github.com/intel/multus-cni/multus-ipam/backend/etcdv3cli"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/net/context"
 )
+
+const requestTimeout = 5 * time.Second
 
 // var (
 // 	errInterrupted = errors.New("interrupted")
@@ -49,7 +53,7 @@ type multusd struct {
 	ctx    context.Context
 	wg     sync.WaitGroup
 	mux    sync.Mutex
-	vxlans []vxlan
+	buf    map[string]string
 	keyDir string
 }
 
@@ -58,6 +62,7 @@ func newMultusd(ctx context.Context, wg sync.WaitGroup, keyDir string) *multusd 
 		ctx:    ctx,
 		wg:     wg,
 		keyDir: keyDir,
+		buf:    make(map[string]string),
 	}
 }
 
@@ -71,6 +76,8 @@ func (d *multusd) Run() {
 		logging.Verbosef("Watching exited")
 		d.wg.Done()
 	}()
+	d.procHistoryRecord(d.keyDir)
+	//todo prevent out of ord between history record and watching
 	for {
 		select {
 		case <-d.ctx.Done():
@@ -91,37 +98,120 @@ func (d *multusd) Watching(ctx context.Context, keyPrefix string) {
 	for wresp := range rch {
 		for _, ev := range wresp.Events {
 			logging.Verbosef("Watch: %s %q: %q \n", ev.Type, ev.Kv.Key, ev.Kv.Value)
-			l, err := etcdv3cli.IpamGetLeaseInfo(ev.Kv.Key, ev.Kv.Value)
+			s, err := etcdv3cli.IpamGetLeaseInfo(ev.Kv.Key, ev.Kv.Value)
 			if err != nil {
 				continue
 			}
 			switch ev.Type.String() {
 			case "DELETE":
-				d.watchedDelSubnet(l)
+				d.watchedDelSubnet(s)
 			case "PUT":
-				d.watchedAddSubnet(l)
-
+				d.watchedAddSubnet(s)
+			default:
+				logging.Errorf("unexpected operate %s", ev.Type)
 			}
 		}
 	}
 }
 
-func (d *multusd) watchedDelSubnet(l *etcdv3cli.Lease) error {
+func (d *multusd) procHistoryRecord(vx string) error {
+	logging.Verbosef("Watching %v", d.keyDir)
+	cli, _, err := etcdv3.NewClient()
+	if err != nil {
+		logging.Panicf("Create etcd client failed, %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	getResp, err := cli.Get(ctx, d.keyDir, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend))
+	cancel()
+	if err != nil {
+		return logging.Errorf("Get %v failed, %v", d.keyDir, err)
+	}
+	for _, ev := range getResp.Kvs {
+		logging.Verbosef("process: PUT %q: %q \n", ev.Key, ev.Value)
+		s, err := etcdv3cli.IpamGetLeaseInfo(ev.Key, ev.Value)
+		if err != nil {
+			continue
+		}
+		if (len(vx) == 0) || (vx == s.V.Vxlan.Name) {
+			d.watchedAddSubnet(s)
+		}
+	}
 	return nil
 }
 
-func (d *multusd) watchedAddSubnet(l *etcdv3cli.Lease) error {
-	iface, err := net.InterfaceByName(l.V.M.Name)
+func (d *multusd) watchedDelSubnet(s *etcdv3cli.Lease) error {
+	if s.V.Vxlan == nil {
+		return nil
+	}
+	l, err := netlink.LinkByName(s.V.Vxlan.Name)
 	if err != nil {
-		return logging.Errorf("get interface %v failed, %v", l.V.M.Name, err)
+		//It may be nomral when no container run in this node
+		logging.Verbosef("get interface %v failed, %v", s.V.Vxlan.Name, err)
+		return nil
 	}
 
-	return netlink.RouteAdd(&netlink.Route{
-		LinkIndex: iface.Index,
-		Scope:     netlink.SCOPE_UNIVERSE,
-		Dst:       &l.K.N,
-		Gw:        net.ParseIP(l.V.M.IP),
-	})
+	vx, ok := l.(*netlink.Vxlan)
+	if !ok {
+		return logging.Errorf("%s already exists but is not a vxlan", s.V.Vxlan.Name)
+	}
+
+	if vx.SrcAddr.String() == s.V.M.IP {
+		logging.Verbosef("get record of self, nothing need to do")
+		return nil
+	}
+
+	defaultMac := net.HardwareAddr{0, 0, 0, 0, 0, 0}
+	err = dev.DelFDB(vx.Index, defaultMac, net.ParseIP(s.V.M.IP))
+	if err != nil {
+		return logging.Errorf("Add fdb %v, %v, %v failed, %v", vx.Index, defaultMac, s.V.M.IP, err)
+	}
+	return nil
+}
+
+func (d *multusd) watchedAddSubnet(s *etcdv3cli.Lease) error {
+	// err := netlink.RouteAdd(&netlink.Route{
+	// 	LinkIndex: iface.Index,
+	// 	Scope:     netlink.SCOPE_UNIVERSE,
+	// 	Dst:       &l.K.N,
+	// 	Gw:        net.ParseIP(l.V.M.IP),
+	// })
+	// if err != nil {
+	// 	return logging.Errorf("RouteAdd link %v to %v via %v failed, %v", iface.Index, l.K.N, l.V.M.IP, err)
+	// }
+	if s.V.Vxlan == nil {
+		return nil
+	}
+
+	l, err := netlink.LinkByName(s.V.Vxlan.Name)
+	if err != nil {
+		//It may be nomral when no container run in this node
+		logging.Verbosef("get interface %v failed, %v", s.V.Vxlan.Name, err)
+		d.buf[s.V.Vxlan.Name] = s.V.Vxlan.Name
+		return nil
+	}
+
+	if _, ok := d.buf[s.V.Vxlan.Name]; ok {
+		delete(d.buf, s.V.Vxlan.Name)
+		return d.procHistoryRecord(s.V.Vxlan.Name)
+	}
+
+	vx, ok := l.(*netlink.Vxlan)
+	if !ok {
+		return logging.Errorf("%s already exists but is not a vxlan", s.V.Vxlan.Name)
+	}
+
+	if vx.SrcAddr.String() == s.V.M.IP {
+		logging.Verbosef("get record of self, nothing need to do")
+		return nil
+	}
+
+	defaultMac := net.HardwareAddr{0, 0, 0, 0, 0, 0}
+
+	err = dev.AddFDB(vx.Index, defaultMac, net.ParseIP(s.V.M.IP))
+	if err != nil {
+		return logging.Errorf("Add fdb %v, %v, %v failed, %v", vx.Index, defaultMac, s.V.M.IP, err)
+	}
+	return nil
 }
 
 func main() {
