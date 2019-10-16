@@ -21,9 +21,9 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/intel/multus-cni/multus-ipam/backend"
 	"github.com/containernetworking/cni/pkg/types/current"
 	"github.com/containernetworking/plugins/pkg/ip"
+	"github.com/intel/multus-cni/multus-ipam/backend"
 )
 
 type IPAllocator struct {
@@ -60,6 +60,14 @@ func (a *IPAllocator) Get(id string, ifname string, requestedIP net.IP) (*curren
 
 		if requestedIP.Equal(r.Gateway) {
 			return nil, fmt.Errorf("requested ip %s is subnet's gateway", requestedIP.String())
+		}
+
+		if len(r.Reserves) > 0 {
+			for _, ip := range r.Reserves {
+				if requestedIP.Equal(ip) {
+					return nil, fmt.Errorf("requested ip %s is a reserved ip", ip.String())
+				}
+			}
 		}
 
 		reserved, err := a.store.Reserve(id, ifname, requestedIP, a.rangeID)
@@ -197,6 +205,13 @@ func (i *RangeIter) Next() (*net.IPNet, net.IP) {
 		i.startIP = i.cur
 		if i.cur.Equal(r.Gateway) {
 			return i.Next()
+		}
+		if len(r.Reserves) > 0 {
+			for _, ip := range r.Reserves {
+				if i.cur.Equal(ip) {
+					return i.Next()
+				}
+			}
 		}
 		return &net.IPNet{IP: i.cur, Mask: r.Subnet.Mask}, r.Gateway
 	}

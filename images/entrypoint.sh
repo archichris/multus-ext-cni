@@ -33,12 +33,15 @@ RESTART_CRIO=false
 CRIO_RESTARTED_ONCE=false
 RENAME_SOURCE_CONFIG_FILE=false
 # host_etcd configuration
+EXTEND_FUNCTION=true
+DAEMON_BIN_FILE="/usr/src/multus-cni/bin/daemon"
 ETCD_CONF_FILE="/tmp/etcd-conf/etcd.conf"
+ETCD_FILE_HOST_DIR="/host/etc/cni/net.d/multus.d/etcd"
 ETCD_FILE_HOST="/host/etc/cni/net.d/multus.d/etcd/etcd.conf"
-MULTUS_IPAM_BIN_FILE="/usr/src/multus-cni/bin/multus-ipam"
-MULTUS_VXLAN_BIN_FILE="/usr/src/multus-cni/bin/multus-vxlan"
 SRC_CNI_BIN="/usr/src/multus-cni/cni"
 CERTS_CLIENT="/tmp/etcd/certs/client/"
+IPAM_BIN_FILE="/usr/src/multus-cni/bin/multus-ipam"
+VXLAN_BIN_FILE="/usr/src/multus-cni/bin/multus-vxlan"
 EXT_DRIVER_DIR="/usr/src/multus-cni/package"
 
 
@@ -68,10 +71,11 @@ function usage() {
   echo -e "\t--rename-conf-file=false (used only with --multus-conf-file=auto)"
   echo -e "\t--restart-crio=false (restarts CRIO after config file is generated)"
   # multus-ipam Configuration
+  echo -e "\t--extend-function=true (enable extend function)"
   echo -e "\t--etcd-conf-file=$ETCD_CONF_FILE"
   echo -e "\t--etcd-file-host=$ETCD_FILE_HOST"
-  echo -e "\t--multus-ipam-bin-file=$MULTUS_IPAM_BIN_FILE"
-  echo -e "\t--multus-vxlan-bin-file=$MULTUS_VXLAN_BIN_FILE"
+  # echo -e "\t--multus-ipam-bin-file=$MULTUS_IPAM_BIN_FILE"
+  # echo -e "\t--multus-vxlan-bin-file=$MULTUS_VXLAN_BIN_FILE"
   # Driver Directory
   echo -e "\t--ext-driver-dir=$EXT_DRIVER_DIR"
 }
@@ -139,12 +143,8 @@ while [ "$1" != "" ]; do
   --rename-conf-file)
     RENAME_SOURCE_CONFIG_FILE=$VALUE
     ;;
-  # etcd-endpoints for multus-ipam cni
-  --multus-ipam-bin-file)
-    MULTUS_IPAM_BIN_FILE=$VALUE
-    ;;
-  --multus-vxlan-bin-file)
-    MULTUS_VXLAN_BIN_FILE=$VALUE
+  --extend-function)
+    EXTEND_FUNCTION=$VALUE
     ;;
   --etcd-tls)
     ETCD_TLS=$VALUE
@@ -179,6 +179,11 @@ mv -f $CNI_BIN_DIR/_multus $CNI_BIN_DIR/multus
 if [ "$MULTUS_CONF_FILE" != "auto" ]; then
   cp -f $MULTUS_CONF_FILE $CNI_CONF_DIR
 fi
+
+cp -f $IPAM_BIN_FILE $CNI_BIN_DIR/_multus-ipam
+mv -f $CNI_BIN_DIR/_multus-ipam $CNI_BIN_DIR/multus-ipam
+cp -f $VXLAN_BIN_FILE $CNI_BIN_DIR/_multus-vxlan
+mv -f $CNI_BIN_DIR/_multus-vxlan $CNI_BIN_DIR/multus-vxlan
 
 # Make a multus.d directory (for our kubeconfig)
 mkdir -p $CNI_CONF_DIR/multus.d
@@ -243,12 +248,6 @@ fi
 # ---------------------- end Generate a "kube-config".
 
 # ---------------------- Generate a "ectd configuration".
-# Copy multus-ipam to directory of cni
-cp -f $MULTUS_IPAM_BIN_FILE $CNI_BIN_DIR/_multus-ipam
-mv -f $CNI_BIN_DIR/_multus-ipam $CNI_BIN_DIR/multus-ipam
-cp -f $MULTUS_VXLAN_BIN_FILE $CNI_BIN_DIR/_multus-vxlan
-mv -f $CNI_BIN_DIR/_multus-vxlan $CNI_BIN_DIR/multus-vxlan
-# mkdir -p $MULTUS_IPAM_HOST
 # mkdir -p $MULTUS_VXLAN_HOST
 
 # Copy other missing cni
@@ -396,6 +395,8 @@ EOF
   fi
 }
 generateMultusConf
+
+ETCD_CFG_DIR=${ETCD_FILE_HOST_DIR} ${DAEMON_BIN_FILE} &
 
 # ---------------------- end Generate "00-multus.conf".
 

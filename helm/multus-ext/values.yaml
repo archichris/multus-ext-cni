@@ -11,7 +11,7 @@ crd:
 daemonset:
   name: multus-ext
   namespace: kube-system
-  image: "192.168.56.201:5000/multus-ext:v1.0.1"
+  image: "192.168.56.201:5000/multus-ext:v0.2.6"
   pullPolicy: "IfNotPresent"
   pullSecret: false
   registrySecret: registry-secret 

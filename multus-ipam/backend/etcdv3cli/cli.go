@@ -3,7 +3,8 @@ package etcdv3cli
 import (
 	"context"
 	"encoding/binary"
-	"encoding/json"
+
+	// "encoding/json"
 	"math"
 	"time"
 
@@ -16,7 +17,8 @@ import (
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/clientv3/concurrency"
-	"github.com/intel/multus-cni/dev"
+
+	// "github.com/intel/multus-cni/dev"
 	"github.com/intel/multus-cni/etcdv3"
 	"github.com/intel/multus-cni/logging"
 	"github.com/intel/multus-cni/multus-ipam/backend/allocator"
@@ -29,36 +31,36 @@ var (
 	maxApplyTry    = 3
 )
 
-type IfInfo struct {
-	Name string `json:"name"`
-	IP   string `json:"ip"`
-	MAC  string `json:"mac"`
-}
+// type IfInfo struct {
+// 	Name string `json:"name"`
+// 	IP   string `json:"ip"`
+// 	MAC  string `json:"mac"`
+// }
 
-type LeaseV struct {
-	M     *IfInfo `json:"master"`
-	Vxlan *IfInfo `json:"vxlan"`
-}
+// type LeaseV struct {
+// 	M     *IfInfo `json:"master"`
+// 	Vxlan *IfInfo `json:"vxlan"`
+// }
 
-type LeaseK struct {
-	N  net.IPNet
-	Id string
-}
+// type LeaseK struct {
+// 	N  net.IPNet
+// 	Id string
+// }
 
-type Lease struct {
-	K *LeaseK
-	V *LeaseV
-}
+// type Lease struct {
+// 	K *LeaseK
+// 	V *LeaseV
+// }
 
 // IpamApplyIPRange is used to apply IP range from ectd
 func IpamApplyIPRange(netConf *allocator.Net, subnet *types.IPNet) (net.IP, net.IP, error) {
-	value, err := IpamFormValue(netConf)
-	if err != nil {
-		return nil, nil, err
-	}
-	logging.Debugf("value for etcd: %s", value)
+	// value, err := IpamFormValue(netConf)
+	// if err != nil {
+	// 	return nil, nil, err
+	// }
+	// logging.Debugf("value for etcd: %s", value)
 
-	IPStart, IPEnd, err := ipamApplyIPRangeUint32(netConf.Type+"/"+netConf.Name, subnet, netConf.IPAM.ApplyUnit, value)
+	IPStart, IPEnd, err := ipamApplyIPRangeUint32(netConf.Name, subnet, netConf.IPAM.ApplyUnit)
 	if err == nil {
 		IPs := make(net.IP, 4)
 		IPe := make(net.IP, 4)
@@ -70,8 +72,8 @@ func IpamApplyIPRange(netConf *allocator.Net, subnet *types.IPNet) (net.IP, net.
 	return nil, nil, err
 }
 
-func ipamApplyIPRangeUint32(network string, subnet *types.IPNet, n uint32, value string) (uint32, uint32, error) {
-	logging.Debugf("ipamApplyIPRangeUint32(%v,%v,%v,%v)", network, *subnet, n, value)
+func ipamApplyIPRangeUint32(network string, subnet *types.IPNet, n uint32) (uint32, uint32, error) {
+	logging.Debugf("ipamApplyIPRangeUint32(%v,%v,%v)", network, *subnet, n)
 	cli, id, err := etcdv3.NewClient()
 	if err != nil {
 		return 0, 0, err
@@ -84,8 +86,9 @@ func ipamApplyIPRangeUint32(network string, subnet *types.IPNet, n uint32, value
 	}
 	defer s.Close()
 
-	keyDir := rootKeyDir + "/" + network + "/lease"
-	keyMutex := rootKeyDir + "/mutex/" + network + "/lease"
+	keyDir := rootKeyDir + "/lease/" + network
+	keyMutex := rootKeyDir + "/lease/mutex/" + network
+	value := id
 
 	m := concurrency.NewMutex(s, keyMutex)
 
@@ -152,57 +155,57 @@ func ipamGetFreeIPRange(cli *clientv3.Client, keyDir string, subnet *types.IPNet
 	return 0, 0, logging.Errorf("There is no available IP")
 }
 
-func IpamGenIfInfo(ifName string) *IfInfo {
-	i := IfInfo{IP: string("0.0.0.0"), MAC: string("00:00:00:00:00:00"), Name: ""}
-	if len(ifName) == 0 {
-		logging.Errorf("empty interface name")
-		return &i
-	}
-	i.Name = ifName
-	iface, err := net.InterfaceByName(ifName)
-	if err != nil {
-		logging.Verbosef("get interface %s failed, %s", ifName, err)
-		return &i
-	}
-	i.MAC = iface.HardwareAddr.String()
-	ifaceAddr, err := dev.GetIfaceIP4Addr(iface)
-	if err != nil {
-		logging.Verbosef("GetIfaceIP4Addr %s failed, %s", ifName, err)
-		return &i
-	}
-	i.IP = ifaceAddr.String()
-	return &i
-}
+// func IpamGenIfInfo(ifName string) *IfInfo {
+// 	i := IfInfo{IP: string("0.0.0.0"), MAC: string("00:00:00:00:00:00"), Name: ""}
+// 	if len(ifName) == 0 {
+// 		logging.Errorf("empty interface name")
+// 		return &i
+// 	}
+// 	i.Name = ifName
+// 	iface, err := net.InterfaceByName(ifName)
+// 	if err != nil {
+// 		logging.Verbosef("get interface %s failed, %s", ifName, err)
+// 		return &i
+// 	}
+// 	i.MAC = iface.HardwareAddr.String()
+// 	ifaceAddr, err := dev.GetIfaceIP4Addr(iface)
+// 	if err != nil {
+// 		logging.Verbosef("GetIfaceIP4Addr %s failed, %s", ifName, err)
+// 		return &i
+// 	}
+// 	i.IP = ifaceAddr.String()
+// 	return &i
+// }
 
-func IpamFormValue(netConf *allocator.Net) (string, error) {
-	kv := &LeaseV{M: IpamGenIfInfo(netConf.Master)}
+// func IpamFormValue(netConf *allocator.Net) (string, error) {
+// 	kv := &LeaseV{M: IpamGenIfInfo(netConf.Master)}
 
-	if netConf.Type == "multus-vxlan" {
-		vx := fmt.Sprintf("multus.%v.%v", netConf.Master, netConf.Vxlan.VxlanId)
-		logging.Debugf("Try to get info of vxlan %v", vx)
-		kv.Vxlan = IpamGenIfInfo(vx)
-	}
-	logging.Debugf("Type:%v,%v", netConf.Type, kv)
+// 	if netConf.Type == "multus-vxlan" {
+// 		vx := fmt.Sprintf("multus.%v.%v", netConf.Master, netConf.Vxlan.VxlanId)
+// 		logging.Debugf("Try to get info of vxlan %v", vx)
+// 		kv.Vxlan = IpamGenIfInfo(vx)
+// 	}
+// 	logging.Debugf("Type:%v,%v", netConf.Type, kv)
 
-	value, err := json.Marshal(kv)
-	if err != nil {
-		return "", err
-	}
-	return string(value), err
-}
+// 	value, err := json.Marshal(kv)
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	return string(value), err
+// }
 
-func IpamGetLeaseInfo(key, value []byte) (*Lease, error) {
-	IPLease := strings.Split(string(key)[strings.LastIndex(string(key), "/")+1:], "-")
-	ip := make(net.IP, 4)
-	tmpU64, _ := strconv.ParseUint(IPLease[0], 10, 32)
-	binary.BigEndian.PutUint32(ip, uint32(tmpU64))
-	tmpU64, _ = strconv.ParseUint(IPLease[1], 10, 32)
-	n := net.IPNet{Mask: net.CIDRMask(32-int(tmpU64), 32), IP: ip}
-	k := LeaseK{N: n, Id: string(IPLease[2])}
-	v := LeaseV{}
-	err := json.Unmarshal(value, &v)
-	if err != nil {
-		return nil, logging.Errorf("parse value %v failed, %v", value, err)
-	}
-	return &Lease{K: &k, V: &v}, nil
-}
+// func IpamGetLeaseInfo(key, value []byte) (*Lease, error) {
+// 	IPLease := strings.Split(string(key)[strings.LastIndex(string(key), "/")+1:], "-")
+// 	ip := make(net.IP, 4)
+// 	tmpU64, _ := strconv.ParseUint(IPLease[0], 10, 32)
+// 	binary.BigEndian.PutUint32(ip, uint32(tmpU64))
+// 	tmpU64, _ = strconv.ParseUint(IPLease[1], 10, 32)
+// 	n := net.IPNet{Mask: net.CIDRMask(32-int(tmpU64), 32), IP: ip}
+// 	k := LeaseK{N: n, Id: string(IPLease[2])}
+// 	v := LeaseV{}
+// 	err := json.Unmarshal(value, &v)
+// 	if err != nil {
+// 		return nil, logging.Errorf("parse value %v failed, %v", value, err)
+// 	}
+// 	return &Lease{K: &k, V: &v}, nil
+// }

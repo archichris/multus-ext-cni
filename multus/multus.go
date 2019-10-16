@@ -95,7 +95,7 @@ func getIfname(delegate *types.DelegateNetConf, argif string, idx int) string {
 
 	// Otherwise construct a unique interface name from the delegate's
 	// position in the delegate list
-	return fmt.Sprintf("net%d", idx)
+	return fmt.Sprintf("eth%d", idx)
 }
 
 func saveDelegates(containerID, dataDir string, delegates []*types.DelegateNetConf) error {

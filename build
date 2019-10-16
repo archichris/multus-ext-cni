@@ -47,6 +47,8 @@ export GO111MODULE=on
 
 echo "Building plugins"
 go build -o ${DEST_DIR}/multus -tags no_openssl -ldflags "${LDFLAGS}" "$@" ./multus
+go build -o ${DEST_DIR}/daemon ./daemon
 go build -o ${DEST_DIR}/multus-ipam ./multus-ipam
 go build -o ${DEST_DIR}/multus-vxlan ./multus-vxlan
+
 

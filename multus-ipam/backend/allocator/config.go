@@ -28,13 +28,13 @@ import (
 // of the calling plugin, not just the IPAM section.
 
 type Net struct {
-	Name          string        `json:"name"`
-	Type          string        `json:"type"`
-	Master        string        `json:"master"`
-	CNIVersion    string        `json:"cniVersion"`
-	IPAM          *IPAMConfig   `json:"ipam"`
-	Vxlan         *VxlanNetConf `json:"vxlan"`
-	RuntimeConfig struct {      // The capability arg
+	Name       string      `json:"name"`
+	Type       string      `json:"type"`
+	Master     string      `json:"master"`
+	CNIVersion string      `json:"cniVersion"`
+	IPAM       *IPAMConfig `json:"ipam"`
+	// Vxlan         *VxlanNetConf `json:"vxlan"`
+	RuntimeConfig struct { // The capability arg
 		IPRanges []RangeSet `json:"ipRanges,omitempty"`
 	} `json:"runtimeConfig,omitempty"`
 	Args *struct {
@@ -44,12 +44,12 @@ type Net struct {
 	LogLevel string `json:"logLevel"`
 }
 
-type VxlanNetConf struct {
-	VxlanId  int  `json:"vxlanId"`
-	Port     int  `json:"port"`
-	Learning bool `json:"learning"`
-	GBP      bool `json:"gbp"`
-}
+// type VxlanNetConf struct {
+// 	VxlanId  int  `json:"vxlanId"`
+// 	Port     int  `json:"port"`
+// 	Learning bool `json:"learning"`
+// 	GBP      bool `json:"gbp"`
+// }
 
 // IPAMConfig represents the IP related network configuration.
 // This nests Range because we initially only supported a single
@@ -83,8 +83,9 @@ type Range struct {
 	SimpleRange
 	// RangeStart net.IP      `json:"rangeStart,omitempty"` // The first ip, inclusive
 	// RangeEnd   net.IP      `json:"rangeEnd,omitempty"`   // The last ip, inclusive
-	Subnet  types.IPNet `json:"subnet"`
-	Gateway net.IP      `json:"gateway,omitempty"`
+	Subnet   types.IPNet `json:"subnet"`
+	Gateway  net.IP      `json:"gateway,omitempty"`
+	Reserves []net.IP    `json:"reserves,omitempty"`
 }
 
 type SimpleRange struct {

@@ -6,6 +6,7 @@ import (
 	"syscall"
 
 	"github.com/intel/multus-cni/dev"
+	"github.com/intel/multus-cni/logging"
 	"github.com/vishvananda/netlink"
 )
 
@@ -24,7 +25,7 @@ func ensureLink(vxlan *netlink.Vxlan) (*netlink.Vxlan, error) {
 		// log.V(1).Infof("VXLAN device already exists")
 		existing, err := netlink.LinkByName(vxlan.Name)
 		if err != nil {
-			return nil, err
+			return nil, logging.Errorf("try to get vxlan %v failed, %v", vxlan.Name, err)
 		}
 
 		incompat := vxlanLinksIncompat(vxlan, existing)
@@ -36,26 +37,26 @@ func ensureLink(vxlan *netlink.Vxlan) (*netlink.Vxlan, error) {
 		// delete existing
 		// log.Warningf("%q already exists with incompatable configuration: %v; recreating device", vxlan.Name, incompat)
 		if err = netlink.LinkDel(existing); err != nil {
-			return nil, fmt.Errorf("failed to delete interface: %v", err)
+			return nil, logging.Errorf("failed to delete interface: %v", err)
 		}
 
 		// create new
 		if err = netlink.LinkAdd(vxlan); err != nil {
-			return nil, fmt.Errorf("failed to create vxlan interface: %v", err)
+			return nil, logging.Errorf("failed to create vxlan interface: %v", err)
 		}
 	} else if err != nil {
-		return nil, err
+		return nil, logging.Errorf("LinkAdd %v failed, %v", vxlan.Name, err)
 	}
 
 	ifindex := vxlan.Index
 	link, err := netlink.LinkByIndex(vxlan.Index)
 	if err != nil {
-		return nil, fmt.Errorf("can't locate created vxlan device with index %v", ifindex)
+		return nil, logging.Errorf("can't locate created vxlan device with index %v", ifindex)
 	}
 
 	var ok bool
 	if vxlan, ok = link.(*netlink.Vxlan); !ok {
-		return nil, fmt.Errorf("created vxlan device with index %v is not vxlan", ifindex)
+		return nil, logging.Errorf("created vxlan device with index %v is not vxlan", ifindex)
 	}
 
 	return vxlan, nil
@@ -104,16 +105,16 @@ func setupVxlan(cfg *VxlanNetConf) (*netlink.Vxlan, error) {
 
 	iface, err := net.InterfaceByName(cfg.Master)
 	if err != nil {
-		return nil, fmt.Errorf("error looking up interface %s: %s", cfg.Master, err)
+		return nil, logging.Errorf("error looking up interface %s: %s", cfg.Master, err)
 	}
 
 	ifaceAddr, err := dev.GetIfaceIP4Addr(iface)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find IPv4 address for interface %s", iface.Name)
+		return nil, logging.Errorf("failed to find IPv4 address for interface %s", iface.Name)
 	}
 
 	if iface.MTU == 0 {
-		return nil, fmt.Errorf("failed to determine MTU for %s interface", ifaceAddr)
+		return nil, logging.Errorf("failed to determine MTU for %s interface", ifaceAddr)
 	}
 	linkCfg := &netlink.Vxlan{
 		LinkAttrs: netlink.LinkAttrs{

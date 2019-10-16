@@ -4,32 +4,37 @@ metadata:
   name: vxlan1
 spec:
   config: '{
-      "cniVersion": "0.3.0",
-      "type": "multus-vxlan",
-      "master": "eth1",
-      "ipMasq": true,
-      "IsGw": false,
-      "IsDefaultGw": false,
-      "hairpinMode": true,
-      "vlan": 0,
-      "vxlan":{
-        "vxlanId": 201,
-        "port": 8472,
-        "learning": false,
-        "gbp": false
-      },
-      "ipam": {
-        "type": "multus-ipam",
-        "ranges": [
-          [
-            { 
-              "subnet": "192.168.109.0/24",
-              "gateway": "192.168.109.1"
-            }
-          ]
-        ],
-        "routes": [
-          { "dst": "0.0.0.0/0" }
-        ]
-      }
+    "cniVersion": "0.3.0",
+    "type": "multus-vxlan",
+    "master": "eth1",
+    "ipMasq": true,
+    "IsGw": false,
+    "IsDefaultGw": false,
+    "hairpinMode": true,
+    "vlan": 0,
+    "vxlan":{
+    "vxlanId": 201,
+    "port": 8472,
+    "learning": false,
+    "gbp": false
+    },
+    "ipam": {
+    "type": "multus-ipam",
+    "ranges": [
+    [
+    {
+    "subnet": "192.168.109.0/24",
+    "gateway": "192.168.109.1",
+    "reserves":
+    [
+    "192.168.109.0",
+    "192.168.109.255"
+    ]
+    }
+    ]
+    ],
+    "routes": [
+    { "dst": "0.0.0.0/0" }
+    ]
+    }
     }'

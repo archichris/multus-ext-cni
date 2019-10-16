@@ -23,6 +23,7 @@ import (
 	"github.com/containernetworking/cni/pkg/version"
 	bv "github.com/containernetworking/plugins/pkg/utils/buildversion"
 	"github.com/intel/multus-cni/logging"
+	"github.com/intel/multus-cni/multus-vxlan/backend/etcdv3cli"
 	"github.com/vishvananda/netlink"
 )
 
@@ -90,15 +91,19 @@ func cmdAdd(args *skel.CmdArgs) error {
 	}
 
 	if n.IPAM.Type != "" {
-		for _, i := range result.IPs {
-			err := netlink.RouteAdd(&netlink.Route{LinkIndex: vxlan.Attrs().Index, Scope: netlink.SCOPE_HOST, Dst: &i.Address})
+		for _, ip := range result.IPs {
+			i := ip.Address
+			i.IP = i.IP.Mask(i.Mask)
+			err := netlink.RouteAdd(&netlink.Route{LinkIndex: vxlan.Attrs().Index, Scope: netlink.SCOPE_UNIVERSE, Dst: &i})
 			if err != nil {
-				logging.Errorf("RouteAdd %v Dst:%v, failed, %v", vxlan.Attrs().Index, i.Address, err)
+				logging.Errorf("RouteAdd %v Dst:%v, failed, %v", vxlan.Attrs().Index, i, err)
 			} else {
-				logging.Verbosef("RouteAdd %v Dst:%v successed", vxlan.Attrs().Index, i.Address)
+				logging.Verbosef("RouteAdd %v Dst:%v successed", vxlan.Attrs().Index, i)
 			}
 		}
 	}
+
+	etcdv3cli.RecVxlan(n.Name, vxlan)
 
 	result.CNIVersion = cniVersion
 
