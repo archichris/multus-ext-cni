@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
+ROOT_PATH=$(cd "$(dirname $0)"; pwd)
+cd ${ROOT_PATH}
+
 DEST_DIR="bin"
 
 if [ ! -d ${DEST_DIR} ]; then
@@ -45,10 +48,15 @@ export GOPATH=${GOPATH}:${PWD}/gopath
 
 export GO111MODULE=on
 
-echo "Building plugins"
+echo "Building multus"
 go build -o ${DEST_DIR}/multus -tags no_openssl -ldflags "${LDFLAGS}" "$@" ./multus
-go build -o ${DEST_DIR}/daemon ./daemon
+echo "Building multus-daemon"
+go build -o ${DEST_DIR}/multus-daemon ./multus-daemon
+echo "Building multus-ipam"
 go build -o ${DEST_DIR}/multus-ipam ./multus-ipam
+echo "Building multus-vxlan"
 go build -o ${DEST_DIR}/multus-vxlan ./multus-vxlan
+echo "Building multus-controller"
+go build -o ${DEST_DIR}/multus-controller ./multus-controller
 
 

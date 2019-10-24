@@ -11,17 +11,25 @@ crd:
 daemonset:
   name: multus-ext
   namespace: kube-system
-  image: "192.168.56.201:5000/multus-ext:v0.2.6"
+  image: "192.168.56.201:5000/multus-ext:v0.3.5"
   pullPolicy: "IfNotPresent"
   pullSecret: false
-  registrySecret: registry-secret 
+  registrySecret: registry-secret
+
+controller:
+  name: multus-controller
+  namespace: kube-system
+  image: "192.168.56.201:5000/multus-controller:v0.3.5"
+  pullPolicy: "IfNotPresent"
+  pullSecret: false
+  registrySecret: registry-secret
 
 etcdcni:
   # name: etcdcni
   endpoints: "192.168.56.201:12379"
   clientPort: 2379
   namespace: default
-  image: 
+  image:
     repository: "k8s.gcr.io/etcd-amd64"
     tag: "3.2.26"
     pullPolicy: "IfNotPresent"

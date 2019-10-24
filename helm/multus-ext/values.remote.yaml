@@ -11,10 +11,18 @@ crd:
 daemonset:
   name: multus-ext
   namespace: kube-system
-  image: "swr.cn-north-1.myhuaweicloud.com/unc/multus-ext:v0.2.6"
+  image: "swr.cn-north-1.myhuaweicloud.com/unc/multus-ext:v0.3.5"
   pullPolicy: "IfNotPresent"
   pullSecret: true
-  registrySecret: registry-secret 
+  registrySecret: registry-secret
+
+controller:
+  name: multus-controller
+  namespace: kube-system
+  image: "swr.cn-north-1.myhuaweicloud.com/unc/multus-controller:v0.3.5"
+  pullPolicy: "IfNotPresent"
+  pullSecret: false
+  registrySecret: registry-secret
 
 etcdcni:
   # name: etcdcni
@@ -22,8 +30,8 @@ etcdcni:
   # clientPort: 2379
   namespace: default
   pullSecret: true
-  registrySecret: registry-secret 
-  image: 
+  registrySecret: registry-secret
+  image:
     repository: "k8s.gcr.io/etcd-amd64"
     tag: "3.2.26"
     pullPolicy: "IfNotPresent"

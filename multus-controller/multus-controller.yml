@@ -1,0 +1,69 @@
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: multus
+rules:
+  - apiGroups: ["k8s.cni.cncf.io"]
+    resources:
+      - "*"
+    verbs:
+      - "*"
+  - apiGroups:
+      - ""
+    resources:
+      - "*"
+    verbs:
+      - "*"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: multus-controller
+  namespace: kube-system
+  labels:
+    app: multus-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: multus-controller
+  template:
+    metadata:
+      labels:
+        app: multus-controller
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - node201
+      # hostNetwork: true
+      # nodeSelector:
+      #   beta.kubernetes.io/arch: amd64
+      # tolerations:
+      #   - operator: Exists
+      #     effect: NoSchedule
+      serviceAccountName: multus
+      containers:
+        - name: multus-controller
+          image: 192.168.56.201:5000/multus-controller:v0.3.0.3
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: cni
+              mountPath: /host/etc/cni/net.d
+            - name: log
+              mountPath: /host/var/log
+      volumes:
+        - name: cni
+          hostPath:
+            path: /etc/cni/net.d
+        - name: log
+          hostPath:
+            path: /var/log

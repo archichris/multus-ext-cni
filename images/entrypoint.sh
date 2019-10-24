@@ -34,7 +34,7 @@ CRIO_RESTARTED_ONCE=false
 RENAME_SOURCE_CONFIG_FILE=false
 # host_etcd configuration
 EXTEND_FUNCTION=true
-DAEMON_BIN_FILE="/usr/src/multus-cni/bin/daemon"
+DAEMON_BIN_FILE="/usr/src/multus-cni/bin/multus-daemon"
 ETCD_CONF_FILE="/tmp/etcd-conf/etcd.conf"
 ETCD_FILE_HOST_DIR="/host/etc/cni/net.d/multus.d/etcd"
 ETCD_FILE_HOST="/host/etc/cni/net.d/multus.d/etcd/etcd.conf"

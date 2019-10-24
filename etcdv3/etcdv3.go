@@ -1,6 +1,7 @@
 package etcdv3
 
 import (
+	"context"
 	"encoding/json"
 	"io/ioutil"
 	"log"
@@ -8,14 +9,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/intel/multus-cni/logging"
+	"path/filepath"
+
 	"github.com/coreos/etcd/clientv3"
+	"github.com/coreos/etcd/clientv3/concurrency"
 	"github.com/coreos/etcd/pkg/transport"
+	"github.com/intel/multus-cni/logging"
 )
 
 var (
 	dialTimeout       = 5 * time.Second
 	defaultEtcdCfgDir = "/etc/cni/net.d/multus.d/etcd"
+	RequestTimeout    = 5 * time.Second
 )
 
 // etcdCfg is the struct of stored etcd information
@@ -109,4 +114,64 @@ func NewClient() (*clientv3.Client, string, error) {
 		}
 	}
 	return cli, id, nil
+}
+
+func KeyToMutex(key string) string {
+	root := filepath.Dir(key)
+	kind := filepath.Base(root)
+	root = filepath.Dir(root)
+	return filepath.Join(root, "mutex", kind)
+}
+
+func TransDelKeys(c *clientv3.Client, keys []string) error {
+	cli := c
+	if cli == nil {
+		cli, _, err := NewClient()
+		if err != nil {
+			return logging.Errorf("Create etcd client failed, %v", err)
+		}
+		defer cli.Close()
+	}
+
+	s, err := concurrency.NewSession(cli)
+	if err != nil {
+		return logging.Errorf("create etcd session failed, %v", err)
+	}
+	defer s.Close()
+
+	var mutex string = ""
+	var m *concurrency.Mutex
+	logging.Debugf("going to del %v from etcd", keys)
+	for _, key := range keys {
+		tmp := KeyToMutex(key)
+		logging.Debugf("old mutex:%v, new mutex:%v, m:%v", mutex, tmp, m)
+		if mutex != tmp {
+			if m != nil {
+				err = m.Unlock(context.TODO())
+				if err != nil {
+					logging.Errorf("unlock %v failed, %v", mutex, err)
+				}
+			}
+			mutex = tmp
+			m = concurrency.NewMutex(s, mutex)
+			if err := m.Lock(context.TODO()); err != nil {
+				logging.Errorf("lock %v failed, %v", mutex, err)
+				mutex = ""
+				m = nil
+				continue
+			}
+		}
+		_, err = cli.Delete(context.TODO(), key)
+		if err != nil {
+			logging.Errorf("del key %v to %v failed", key)
+		}
+		logging.Debugf("Del key %v", key)
+	}
+
+	if m != nil {
+		if m.Unlock(context.TODO()); err != nil {
+			logging.Errorf("lock %v failed, %v", mutex, err)
+		}
+	}
+	return nil
 }

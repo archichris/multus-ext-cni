@@ -9,6 +9,7 @@ require (
 	github.com/containernetworking/plugins v0.8.2
 	github.com/coreos/etcd v3.3.10+incompatible
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
+	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6 // indirect
 	github.com/google/btree v0.0.0-20160524151835-7d79101e329e // indirect
 	github.com/google/uuid v1.1.1 // indirect
@@ -18,6 +19,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.1.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.11.2 // indirect
+	github.com/hashicorp/golang-lru v0.5.3 // indirect
 	github.com/imdario/mergo v0.0.0-20141206190957-6633656539c1 // indirect
 	github.com/j-keck/arping v0.0.0-20160618110441-2cf9dc699c56
 	github.com/jonboulle/clockwork v0.1.0 // indirect

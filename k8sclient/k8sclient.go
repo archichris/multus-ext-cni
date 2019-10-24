@@ -37,17 +37,17 @@ import (
 )
 
 var (
-	crdPlural = "network-attachment-definitions"  //-ldflags "-X github.com/intel/multus-cni/k8sclient.annotation"
-    annotation = "networks"  //-ldflags "-X github.com/intel/multus-cni/k8sclient.annotation=mynetworks"
-	resourceNameAnnot      = "k8s.v1.cni.cncf.io/resourceName"
-	networkAttachmentAnnot = "k8s.v1.cni.cncf.io/" + annotation
-	defaultNetAnnot        = networkAttachmentAnnot + "-default"
+	crdPlural               = "network-attachment-definitions" //-ldflags "-X github.com/intel/multus-cni/k8sclient.annotation"
+	annotation              = "networks"                       //-ldflags "-X github.com/intel/multus-cni/k8sclient.annotation=mynetworks"
+	resourceNameAnnot       = "k8s.v1.cni.cncf.io/resourceName"
+	networkAttachmentAnnot  = "k8s.v1.cni.cncf.io/" + annotation
+	defaultNetAnnot         = networkAttachmentAnnot + "-default"
 	networkAttachmentStatus = networkAttachmentAnnot + "-status"
 )
 
-func Info(){
-	fmt.Printf("%s\n%s\n%s\n%s\n%s\n%s\n",crdPlural, annotation, resourceNameAnnot, 
-	networkAttachmentAnnot, defaultNetAnnot,networkAttachmentStatus)
+func Info() {
+	fmt.Printf("%s\n%s\n%s\n%s\n%s\n%s\n", crdPlural, annotation, resourceNameAnnot,
+		networkAttachmentAnnot, defaultNetAnnot, networkAttachmentStatus)
 }
 
 // NoK8sNetworkError indicates error, no network in kubernetes
@@ -81,6 +81,9 @@ func (d *defaultKubeClient) GetPod(namespace, name string) (*v1.Pod, error) {
 
 func (d *defaultKubeClient) UpdatePodStatus(pod *v1.Pod) (*v1.Pod, error) {
 	return d.client.Core().Pods(pod.Namespace).UpdateStatus(pod)
+}
+func (d *defaultKubeClient) Client() *kubernetes.Interface {
+	return &d.client
 }
 
 func setKubeClientInfo(c *ClientInfo, client KubeClient, k8sArgs *types.K8sArgs) {
