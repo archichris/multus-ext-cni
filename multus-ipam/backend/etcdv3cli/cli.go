@@ -2,210 +2,211 @@ package etcdv3cli
 
 import (
 	"context"
-	"encoding/binary"
-
-	// "encoding/json"
+	"path/filepath"
 	"math"
-	"time"
 
 	"fmt"
 	"net"
 
-	"strconv"
 	"strings"
 
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/coreos/etcd/clientv3"
-	"github.com/coreos/etcd/clientv3/concurrency"
 
-	// "github.com/intel/multus-cni/dev"
 	"github.com/intel/multus-cni/etcdv3"
+	"github.com/intel/multus-cni/multus-ipam/backend/disk"
+	"github.com/intel/multus-cni/ipaddr"
 	"github.com/intel/multus-cni/logging"
 	"github.com/intel/multus-cni/multus-ipam/backend/allocator"
 )
 
 var (
-	rootKeyDir     = "multus" //multus/netowrkname/key(ipsegment):value(node)
-	keyTemplate    = "%010d-%d-%s"
-	requestTimeout = 5 * time.Second
-	maxApplyTry    = 3
+	leaseDir    = "lease" //multus/netowrkname/key(ipsegment):value(node)
+	staticDir   = "static"
+	keyTemplate = "%010d-%d"
+	maxApplyTry = 3
 )
 
-// type IfInfo struct {
-// 	Name string `json:"name"`
-// 	IP   string `json:"ip"`
-// 	MAC  string `json:"mac"`
-// }
-
-// type LeaseV struct {
-// 	M     *IfInfo `json:"master"`
-// 	Vxlan *IfInfo `json:"vxlan"`
-// }
-
-// type LeaseK struct {
-// 	N  net.IPNet
-// 	Id string
-// }
-
-// type Lease struct {
-// 	K *LeaseK
-// 	V *LeaseV
-// }
-
-// IpamApplyIPRange is used to apply IP range from ectd
-func IpamApplyIPRange(netConf *allocator.Net, subnet *types.IPNet) (net.IP, net.IP, error) {
-	// value, err := IpamFormValue(netConf)
-	// if err != nil {
-	// 	return nil, nil, err
-	// }
-	// logging.Debugf("value for etcd: %s", value)
-
-	IPStart, IPEnd, err := ipamApplyIPRangeUint32(netConf.Name, subnet, netConf.IPAM.ApplyUnit)
-	if err == nil {
-		IPs := make(net.IP, 4)
-		IPe := make(net.IP, 4)
-		binary.BigEndian.PutUint32(IPs, IPStart)
-		binary.BigEndian.PutUint32(IPe, IPEnd)
-		logging.Debugf("get IP range (%v-%v) from (%v-%v)", IPs, IPe, IPStart, IPEnd)
-		return IPs, IPe, nil
-	}
-	return nil, nil, err
+func ipmaLeaseToUint32Range(key string) (IPStart uint32, IPEnd uint32) {
+	lease := strings.Split(filepath.Base(key), "-")
+	IPStart = ipaddr.StrToUint32(lease[0])
+	hostSize := ipaddr.StrToUint32(lease[1])
+	IPEnd = ipaddr.Uint32AddSeg(IPStart, hostSize) - 1
+	return IPStart, IPEnd
 }
 
-func ipamApplyIPRangeUint32(network string, subnet *types.IPNet, n uint32) (uint32, uint32, error) {
-	logging.Debugf("ipamApplyIPRangeUint32(%v,%v,%v)", network, *subnet, n)
-	cli, id, err := etcdv3.NewClient()
+func ipamLeaseToSimleRange(l string) *allocator.SimpleRange {
+	ips, ipe := ipmaLeaseToUint32Range(l)
+	return &allocator.SimpleRange{ipaddr.Uint32ToIP4(ips), ipaddr.Uint32ToIP4(ipe)}
+}
+
+func ipamSimpleRangeToLease(keyDir string, rs *allocator.SimpleRange) string {
+	ips := ipaddr.IP4ToUint32(rs.RangeStart)
+	n := rs.HostSize()
+	return filepath.Join(keyDir, fmt.Sprintf(keyTemplate, ips, n))
+}
+
+// IpamApplyIPRange is used to apply IP range from ectd
+func IPAMApplyIPRange(netConf *allocator.Net, subnet *types.IPNet) (*allocator.SimpleRange, error) {
+	logging.Debugf("Going to do apply IP range from %v", subnet)
+	etcdMultus, err := etcdv3.New()
 	if err != nil {
-		return 0, 0, err
+		return nil, err
 	}
+	cli, rKeyDir, id := etcdMultus.Cli,etcdMultus.RootKeyDir, etcdMultus.Id
 	defer cli.Close() // make sure to close the client
 
-	s, err := concurrency.NewSession(cli)
+	keyDir := filepath.Join(rKeyDir, leaseDir, netConf.Name)
+
+	rs, err := ipamGetFreeIPRange(cli, keyDir, subnet, netConf.IPAM.ApplyUnit)
 	if err != nil {
-		return 0, 0, logging.Errorf("create etcd session failed, %v", err)
+		return nil, err
 	}
-	defer s.Close()
-
-	keyDir := rootKeyDir + "/lease/" + network
-	keyMutex := rootKeyDir + "/lease/mutex/" + network
-	value := id
-
-	m := concurrency.NewMutex(s, keyMutex)
-
-	// acquire lock for s
-	if err := m.Lock(context.TODO()); err != nil {
-		return 0, 0, logging.Errorf("get etcd locd failed, %v", err)
-	}
-
-	defer func() {
-		if err := m.Unlock(context.TODO()); err != nil {
-			logging.Debugf("unlock etcd mutex failed, %v", err)
-		}
-	}()
-
-	IPBegin, IPEnd, err := ipamGetFreeIPRange(cli, keyDir, subnet, n)
+	err = etcdv3.TransPutKey(cli, ipamSimpleRangeToLease(keyDir, rs), id, true)
 	if err != nil {
-		return 0, 0, err
+		return nil, logging.Errorf("write key %v with value %v failed", ipamSimpleRangeToLease(keyDir, rs), id)
 	}
 
-	claimKey := fmt.Sprintf(keyTemplate, IPBegin, n, strings.Trim(id, "-:\n\t "))
-	_, err = cli.Put(context.TODO(), keyDir+"/"+claimKey, value)
-	if err != nil {
-		return 0, 0, logging.Errorf("write key %v to %v failed", keyDir+"/"+claimKey, value)
-	}
-	return IPBegin, IPEnd, nil
+	return rs, nil
 }
 
 // GetFreeIPRange is used to find a free IP range
-func ipamGetFreeIPRange(cli *clientv3.Client, keyDir string, subnet *types.IPNet, n uint32) (uint32, uint32, error) {
+func ipamGetFreeIPRange(cli *clientv3.Client, keyDir string, subnet *types.IPNet, n uint32) (*allocator.SimpleRange, error) {
 	unit := uint32(math.Pow(2, float64(n)))
 	logging.Debugf("ipamGetFreeIPRange(%v,%v,%v)", keyDir, *subnet, unit)
-	bIP := binary.BigEndian.Uint32(subnet.IP.To4())
-	eIP := bIP + ^binary.BigEndian.Uint32(subnet.Mask)
-	lastIP := bIP
-	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-	getResp, err := cli.Get(ctx, keyDir, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend))
+	rips, ripe := ipaddr.Net4To2Uint32((*net.IPNet)(subnet))
+	last := ripe
+	ctx, cancel := context.WithTimeout(context.Background(), etcdv3.RequestTimeout)
+	resp, err := cli.Get(ctx, keyDir, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend))
 	cancel()
 	if err != nil {
-		return 0, 0, logging.Errorf("Get %v failed, %v", keyDir, err)
+		return nil, logging.Errorf("Get %v failed, %v", keyDir, err)
 	}
-	var IPBegin, IPEnd uint32
-	for _, ev := range getResp.Kvs {
+	var sips, sipe uint32
+	for _, ev := range resp.Kvs {
 		logging.Debugf("Key:%v, Value:%v ", string(ev.Key), string(ev.Value))
-		IPLease := strings.Split(string(ev.Key)[strings.LastIndex(string(ev.Key), "/")+1:], "-")
-		tmpU64, _ := strconv.ParseUint(IPLease[0], 10, 32)
-		IPRangeBegin := uint32(tmpU64)
-		if IPRangeBegin-lastIP < unit {
-			tmpU64, _ = strconv.ParseUint(IPLease[1], 10, 32)
-			lastIP = IPRangeBegin + uint32(math.Pow(2, float64(tmpU64)))
+		ips, ipe := ipmaLeaseToUint32Range(string(ev.Key))
+		if ips == 0 {
+			logging.Debugf("Invalid Key %v", string(ev.Key))
 			continue
 		}
-		IPBegin = lastIP
-		IPEnd = lastIP + unit - 1
-		logging.Debugf("get IP range (%v-%v) from (%v-%v) mode 1", IPBegin, IPEnd, bIP, eIP)
-		return IPBegin, IPEnd, nil
+		if ips-last < unit {
+			last = ipe + 1
+			continue
+		}
+		sips = last
+		sipe = last + unit - 1
+		logging.Debugf("get IP range (%v-%v) from (%v-%v) mode 1", sips, sipe, rips, ripe)
+		return &allocator.SimpleRange{ipaddr.Uint32ToIP4(sips), ipaddr.Uint32ToIP4(sipe)}, nil
 	}
-
-	if eIP-lastIP+1 >= unit {
-		IPBegin = lastIP
-		IPEnd = lastIP + unit
-		logging.Debugf("get IP range (%v-%v) from (%v-%v) mode 2", IPBegin, IPEnd, bIP, eIP)
-		return IPBegin, IPEnd, nil
-	}
-	return 0, 0, logging.Errorf("There is no available IP")
+	return nil, logging.Errorf("apply ip range failed")
 }
 
-// func IpamGenIfInfo(ifName string) *IfInfo {
-// 	i := IfInfo{IP: string("0.0.0.0"), MAC: string("00:00:00:00:00:00"), Name: ""}
-// 	if len(ifName) == 0 {
-// 		logging.Errorf("empty interface name")
-// 		return &i
-// 	}
-// 	i.Name = ifName
-// 	iface, err := net.InterfaceByName(ifName)
-// 	if err != nil {
-// 		logging.Verbosef("get interface %s failed, %s", ifName, err)
-// 		return &i
-// 	}
-// 	i.MAC = iface.HardwareAddr.String()
-// 	ifaceAddr, err := dev.GetIfaceIP4Addr(iface)
-// 	if err != nil {
-// 		logging.Verbosef("GetIfaceIP4Addr %s failed, %s", ifName, err)
-// 		return &i
-// 	}
-// 	i.IP = ifaceAddr.String()
-// 	return &i
-// }
+func IPAMGetAllLease(cli *clientv3.Client, keyDir, id string) (map[string][]allocator.SimpleRange, error) {
+	logging.Debugf("Going to get all IP lease belong to %v from %v", id, keyDir)
+	ctx, cancel := context.WithTimeout(context.Background(), etcdv3.RequestTimeout)
+	resp, err := cli.Get(ctx, keyDir, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend))
+	cancel()
+	if err != nil {
+		return nil, logging.Errorf("Get %v failed, %v", keyDir, err)
+	}
+	leases := make(map[string][]allocator.SimpleRange)
+	for _, ev := range resp.Kvs {
+		v := strings.Trim(string(ev.Value), " \r\n\t")
+		logging.Debugf("Key:%v, Value:%v, id:%v, match:%v ", string(ev.Key), v, id, v == id)
+		if v == id {
+			k := strings.Trim(string(ev.Key), " \r\n\t")
+			network := filepath.Base(filepath.Dir(k))
+			sr := ipamLeaseToSimleRange(k)
+			if _, ok := leases[network]; ok {
+				leases[network] = append(leases[network], *sr)
+			} else { 
+				leases[network] = []allocator.SimpleRange{*sr}
+			}
+		}
+	}
+	return leases, nil
+}
 
-// func IpamFormValue(netConf *allocator.Net) (string, error) {
-// 	kv := &LeaseV{M: IpamGenIfInfo(netConf.Master)}
+func ipamCheckNet(em *etcdv3.EtcdMultus, network string, leases []allocator.SimpleRange) {
+	s, err:= disk.New(network, "")
+	if err != nil{
+		logging.Errorf("create disk manager failed, %v", err)
+		return 
+	}
+	caches, err := s.LoadCache()
+	if err != nil{
+		logging.Errorf("get cache failed, %v", err)
+		return 
+	}
+	keyDir := filepath.Join(em.RootKeyDir,leaseDir, network)
+	cli, id:= em.Cli, em.Id
+	var last *allocator.SimpleRange
+	for _, lsr := range leases {
+		last = nil
+		for _, csr := range caches {
+			if csr.Overlaps(&lsr) {
+				if csr.Match(&lsr) {
+					last = &csr
+					break
+				} else {
+					// caches = delete(caches, csr)
+					s.DeleteCache(&csr)
+				}
+			}
+		}
+		if last == nil {
+			err := s.AppendCache(&lsr)
+			if err != nil {
+				etcdv3.TransDelKey(cli, ipamSimpleRangeToLease(keyDir, &lsr))
+			} 
+		}
+	}
 
-// 	if netConf.Type == "multus-vxlan" {
-// 		vx := fmt.Sprintf("multus.%v.%v", netConf.Master, netConf.Vxlan.VxlanId)
-// 		logging.Debugf("Try to get info of vxlan %v", vx)
-// 		kv.Vxlan = IpamGenIfInfo(vx)
-// 	}
-// 	logging.Debugf("Type:%v,%v", netConf.Type, kv)
+	caches, err = s.LoadCache()
+	if err != nil{
+		logging.Errorf("get cache failed, %v", err)
+		return 
+	}	
+	for _, csr := range caches {
+		last = nil
+		for _, lsr := range leases {
+			if csr.Match(&lsr) {
+				last = &csr
+				break
+			}
+		}
+		if last == nil {
+			err = etcdv3.TransPutKey(cli, ipamSimpleRangeToLease(keyDir, &csr), id, true)
+			if err != nil {
+				s.DeleteCache(&csr)
+			}
+		}
+	}
+}
 
-// 	value, err := json.Marshal(kv)
-// 	if err != nil {
-// 		return "", err
-// 	}
-// 	return string(value), err
-// }
+func IPAMCheck() error {
+	logging.Debugf("Going to check IPAM")
+	etcdMultus, err := etcdv3.New()
+	cli, rKeyDir, id := etcdMultus.Cli, etcdMultus.RootKeyDir, etcdMultus.Id
+	if err != nil {
+		return err
+	}
+	defer cli.Close() // make sure to close the client
 
-// func IpamGetLeaseInfo(key, value []byte) (*Lease, error) {
-// 	IPLease := strings.Split(string(key)[strings.LastIndex(string(key), "/")+1:], "-")
-// 	ip := make(net.IP, 4)
-// 	tmpU64, _ := strconv.ParseUint(IPLease[0], 10, 32)
-// 	binary.BigEndian.PutUint32(ip, uint32(tmpU64))
-// 	tmpU64, _ = strconv.ParseUint(IPLease[1], 10, 32)
-// 	n := net.IPNet{Mask: net.CIDRMask(32-int(tmpU64), 32), IP: ip}
-// 	k := LeaseK{N: n, Id: string(IPLease[2])}
-// 	v := LeaseV{}
-// 	err := json.Unmarshal(value, &v)
-// 	if err != nil {
-// 		return nil, logging.Errorf("parse value %v failed, %v", value, err)
-// 	}
-// 	return &Lease{K: &k, V: &v}, nil
-// }
+	leaseDir = filepath.Join(rKeyDir, leaseDir)
+
+	leases, err := IPAMGetAllLease(cli, leaseDir, id)
+	if err != nil {
+		return err
+	}
+	if len(leases) == 0 {
+		logging.Debugf("No node lease found")
+		return nil
+	}
+
+	for n, l := range leases {
+		ipamCheckNet(etcdMultus, n, l)
+	}
+	return nil
+}

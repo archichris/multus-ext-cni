@@ -26,7 +26,11 @@ controller:
 
 etcdcni:
   # name: etcdcni
-  endpoints: "192.168.56.201:12379"
+  # endpoints: "192.168.56.201:12379"
+  endpoints:
+    - '"192.168.56.201:12379"'
+    # - '"192.168.56.202:12379"'
+    # - "192.168.56.201:12379"
   clientPort: 2379
   namespace: default
   image:

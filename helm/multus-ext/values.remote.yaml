@@ -26,7 +26,8 @@ controller:
 
 etcdcni:
   # name: etcdcni
-  endpoints: "172.16.201.61:12379"
+  endpoints:
+    - '"172.16.201.61:12379"'
   # clientPort: 2379
   namespace: default
   pullSecret: true

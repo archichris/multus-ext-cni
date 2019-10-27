@@ -18,7 +18,7 @@ import (
 	// "encoding/json"
 	// "flag"
 	"fmt"
-	"net"
+	// "net"
 	"strings"
 
 	"github.com/containernetworking/cni/pkg/skel"
@@ -37,7 +37,7 @@ const defaultApplyUnit = uint32(4)
 
 func init() {
 	//for debug
-	logging.SetLogFile("/tmp/multus-ipam.log")
+	logging.SetLogFile("/var/log/multus-ipam.log")
 	logging.SetLogLevel("debug")
 }
 
@@ -147,20 +147,12 @@ func cmdDel(args *skel.CmdArgs) error {
 
 func formRangeSets(origin []allocator.RangeSet, network string, unit uint32, store *disk.Store) ([]allocator.RangeSet, error) {
 	// load IP range set from local cache, "IPStart-IPEnd"
-	c, err := store.LoadRangeSetFromCache()
+	cacheRangeSet, err := store.LoadCache()
 	if err != nil {
 		return nil, err
 	}
 
-	logging.Debugf("Origin: %v", origin)
-
-	// parse cache to net.IP format
-	var cacheRangeSet []allocator.SimpleRange
-	for _, r := range c {
-		pairIP := strings.Split(r, "-")
-		cacheRangeSet = append(cacheRangeSet, allocator.SimpleRange{net.ParseIP(pairIP[0]), net.ParseIP(pairIP[1])})
-	}
-	logging.Debugf("Cache: %v", cacheRangeSet)
+	logging.Debugf("Origin: %v, Cache: %v", origin, cacheRangeSet)
 
 	// RangeSets to find
 	rss := []allocator.RangeSet{}
@@ -214,20 +206,14 @@ func allocateIP(netConf *allocator.Net, store *disk.Store, containerID string, i
 		//try most 3 times
 		for i := 0; i < 3; i++ {
 			if err != nil && strings.Contains(err.Error(), "no IP addresses available in range set") {
-				// apply IP slice from etcd if there is no available IP addresses
-				// todo use whole origin rangeset to apply ip pool
-				// value, err = etcdv3cli.IpamFormValue(netConf)
-				// if err != nil {
-				// 	return nil, logging.Errorf("generate vlaue from %v failed, %v", value, err)
-				// }
-				var sIP, eIP net.IP
-				// sIP, eIP, err = etcdv3cli.IpamApplyIPRange(netConf.Type+"/"+netConf.Name, &ipamConf.Ranges[idx][0].Subnet, ipamConf.ApplyUnit, value)
-				sIP, eIP, err = etcdv3cli.IpamApplyIPRange(netConf, &ipamConf.Ranges[idx][0].Subnet)
+				var sr *allocator.SimpleRange
+				sr, err = etcdv3cli.IPAMApplyIPRange(netConf, &ipamConf.Ranges[idx][0].Subnet)
 				// logging.Debugf("apply new ip range(%v, %v, %v) return %v, %v, %v", ipamConf.Name, &ipamConf.Ranges[idx][0].Subnet, ipamConf.ApplyUnit, sIP, eIP, err)
 				if err == nil {
-					store.AppendRangeToCache(fmt.Sprintf("%s-%s", sIP.String(), eIP.String()))
+					// store.AppendRangeToCache(fmt.Sprintf("%s-%s", sIP.String(), eIP.String()))
+					store.AppendCache(sr)
 					r := ipamConf.Ranges[idx][0]
-					r.RangeStart, r.RangeEnd = sIP, eIP
+					r.RangeStart, r.RangeEnd = sr.RangeStart, sr.RangeEnd
 					alloc = allocator.NewIPAllocator(&(allocator.RangeSet{r}), store, idx)
 					logging.Debugf("NewIPAllocator(%v, %v, %v) return v%", allocator.RangeSet{r}, store, idx, alloc)
 					ipConf, err = alloc.Get(containerID, ifName, nil)

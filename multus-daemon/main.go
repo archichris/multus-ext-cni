@@ -26,7 +26,8 @@ import (
 	"github.com/intel/multus-cni/dev"
 	"github.com/intel/multus-cni/etcdv3"
 	"github.com/intel/multus-cni/logging"
-	"github.com/intel/multus-cni/multus-vxlan/backend/etcdv3cli"
+	ipamcli "github.com/intel/multus-cni/multus-ipam/backend/etcdv3cli"
+	vxcli "github.com/intel/multus-cni/multus-vxlan/backend/etcdv3cli"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/net/context"
 )
@@ -77,12 +78,18 @@ func (d *multusd) Run() {
 		d.wg.Done()
 	}()
 	d.procHistoryRecord("")
+
 	//todo prevent out of ord between history record and watching
+	//
+	ticker := time.NewTicker(time.Second * 5)
 	for {
 		select {
 		case <-d.ctx.Done():
 			logging.Verbosef("ctx stop multusd")
 			return
+		case <-ticker.C:
+			logging.Debugf("ticker run")
+			ipamcli.IPAMCheck()
 		}
 	}
 }
@@ -90,7 +97,8 @@ func (d *multusd) Run() {
 func (d *multusd) Watching(ctx context.Context, keyPrefix string) {
 	logging.Verbosef("Watching %v", keyPrefix)
 	for {
-		cli, _, err := etcdv3.NewClient()
+		etcdMultus, err := etcdv3.New()
+		cli := etcdMultus.Cli
 		if err != nil {
 			logging.Errorf("Create etcd client failed, %v", err)
 			time.Sleep(requestTimeout)
@@ -101,7 +109,7 @@ func (d *multusd) Watching(ctx context.Context, keyPrefix string) {
 		for wresp := range rch {
 			for _, ev := range wresp.Events {
 				logging.Verbosef("Watch: %s %q: %q \n", ev.Type, ev.Kv.Key, ev.Kv.Value)
-				name, src := etcdv3cli.ParseVxlan(ev.Kv.Key, ev.Kv.Value)
+				name, src := vxcli.ParseVxlan(ev.Kv.Key, ev.Kv.Value)
 				switch ev.Type.String() {
 				case "DELETE":
 					d.watchedDelSubnet(name, src)
@@ -117,7 +125,8 @@ func (d *multusd) Watching(ctx context.Context, keyPrefix string) {
 
 func (d *multusd) procHistoryRecord(vx string) error {
 	logging.Verbosef("procHistoryRecord %v, %d", vx, len(vx))
-	cli, _, err := etcdv3.NewClient()
+	etcdMultus, err := etcdv3.New()
+	cli := etcdMultus.Cli
 	if err != nil {
 		return logging.Errorf("Create etcd client failed, %v", err)
 	}
@@ -130,7 +139,7 @@ func (d *multusd) procHistoryRecord(vx string) error {
 	}
 	for _, ev := range getResp.Kvs {
 		logging.Verbosef("process: PUT %q: %q \n", string(ev.Key), string(ev.Value))
-		name, src := etcdv3cli.ParseVxlan(ev.Key, ev.Value)
+		name, src := vxcli.ParseVxlan(ev.Key, ev.Value)
 		if (len(vx) == 0) || (vx == name) {
 			d.watchedAddSubnet(name, src)
 		}
@@ -196,6 +205,40 @@ func (d *multusd) watchedDelSubnet(name, src string) error {
 	}
 	return nil
 }
+
+// func (d *multusd) CheckIPMA(keyPrefix string) error {
+// 	logging.Verbosef("CheckIPMA %v", keyPrefix)
+// 	cli, _, err := etcdv3.NewClient()
+// 	if err != nil {
+// 		return logging.Errorf("Create etcd client failed, %v", err)
+// 	}
+// 	cli.get
+
+// 	for {
+// 		cli, _, err := etcdv3.NewClient()
+// 		if err != nil {
+// 			logging.Errorf("Create etcd client failed, %v", err)
+// 			time.Sleep(requestTimeout)
+// 			continue
+// 		}
+// 		defer cli.Close()
+// 		rch := cli.Watch(ctx, keyPrefix, clientv3.WithPrefix())
+// 		for wresp := range rch {
+// 			for _, ev := range wresp.Events {
+// 				logging.Verbosef("Watch: %s %q: %q \n", ev.Type, ev.Kv.Key, ev.Kv.Value)
+// 				name, src := etcdv3cli.ParseVxlan(ev.Kv.Key, ev.Kv.Value)
+// 				switch ev.Type.String() {
+// 				case "DELETE":
+// 					d.watchedDelSubnet(name, src)
+// 				case "PUT":
+// 					d.watchedAddSubnet(name, src)
+// 				default:
+// 					logging.Errorf("unexpected operate %s", ev.Type)
+// 				}
+// 			}
+// 		}
+// 	}
+// }
 
 func main() {
 	// install signal process

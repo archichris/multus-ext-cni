@@ -1,4 +1,5 @@
-package etcdv3
+package ipaddr_test
+
 import (
 	"testing"
 
@@ -6,8 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestEtcdv3(t *testing.T) {
+func TestIpaddr(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Etcdv3 Suite")
+	RunSpecs(t, "Ipaddr Suite")
 }
-

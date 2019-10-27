@@ -18,9 +18,12 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"math"
 
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/plugins/pkg/ip"
+	"github.com/intel/multus-cni/logging"
+	"github.com/intel/multus-cni/ipaddr"
 )
 
 // Canonicalize takes a given range and ensures that all information is consistent,
@@ -168,4 +171,56 @@ func lastIP(subnet types.IPNet) net.IP {
 	}
 
 	return end
+}
+
+func (r *SimpleRange) Overlaps(r1 *SimpleRange) bool {
+	// different familes
+	// if len(r.RangeStart) != len(r1.RangeStart) {
+	// 	return false
+	// }
+
+	return (ip.Cmp(r.RangeStart, r1.RangeStart) >= 0 && ip.Cmp(r.RangeStart, r1.RangeEnd) <= 0) ||
+		(ip.Cmp(r.RangeEnd, r1.RangeStart) >= 0 && ip.Cmp(r.RangeEnd, r1.RangeEnd) <= 0)
+
+}
+
+func (r *SimpleRange) Match(r1 *SimpleRange) bool {
+	// different familes
+	logging.Debugf("%v:%v",len(r.RangeStart),len(r1.RangeStart) )
+	logging.Debugf("%v:%v",(ip.Cmp(r.RangeStart, r1.RangeStart)==0),(ip.Cmp(r.RangeEnd, r1.RangeEnd)==0) )
+	// if len(r.RangeStart) != len(r1.RangeStart) {
+	// 	return false
+	// }
+
+	return (ip.Cmp(r.RangeStart, r1.RangeStart)==0) && (ip.Cmp(r.RangeEnd, r1.RangeEnd)==0)
+}
+
+func (r *SimpleRange) Contains(r1 *SimpleRange) bool {
+	// different familes
+	// if len(r.RangeStart) != len(r1.RangeStart) {
+	// 	return false
+	// }
+
+	return ip.Cmp(r.RangeStart, r1.RangeStart) <= 0 && ip.Cmp(r.RangeEnd, r1.RangeEnd) >= 0
+}
+
+func (r *SimpleRange) HostSize() uint32{
+	return uint32(math.Log2(float64(ipaddr.IP4ToUint32(r.RangeEnd) - ipaddr.IP4ToUint32(r.RangeStart) + 1)))
+}
+
+func (r *SimpleRange) Canonicalize() error{
+	if err := canonicalizeIP(&r.RangeStart); err != nil {
+		return logging.Errorf("canonicalizeIP %v failed, %v",r.RangeStart, err)
+	}
+
+	tmp := ipaddr.Uint32AddSeg(ipaddr.IP4ToUint32(r.RangeStart),r.HostSize()) - 1
+	
+	if ipaddr.IP4ToUint32(r.RangeEnd) != tmp{
+		r.RangeEnd = ipaddr.Uint32ToIP4(tmp)
+	}
+
+	if err := canonicalizeIP(&r.RangeEnd); err != nil {
+		return logging.Errorf("canonicalizeIP %v failed, %v",r.RangeEnd, err)
+	}
+    return nil
 }

@@ -127,7 +127,8 @@ func (km *KubeManager) Run() {
 func (km *KubeManager) handleNodeDelEvent(n *apiv1.Node) error {
 	id := strings.Trim(n.Name, " \n\r\t")
 	logging.Verbosef("Node %v is deleted", id)
-	cli, _, err := etcdv3.NewClient()
+	etcdMultus, err := etcdv3.New()
+	cli := etcdMultus.Cli
 	if err != nil {
 		km.fullCheck = true
 		return logging.Errorf("Create etcd client failed, %v", err)
@@ -145,8 +146,8 @@ func (km *KubeManager) handleNodeDelEvent(n *apiv1.Node) error {
 
 	for _, ev := range getResp.Kvs {
 		v := strings.Trim(string(ev.Value), " \r\n\t")
-		logging.Debugf("Key:%v, Value:%v, ID:%v, match:%v ", string(ev.Key), string(ev.Value), id, id == v)
-		if v == id {
+		logging.Debugf("Key:%v, Value:%v, ID:%v, match:%v ", string(ev.Key), string(ev.Value), etcdMultus.Id, etcdMultus.Id == v)
+		if v == etcdMultus.Id {
 			delList = append(delList, string(ev.Key))
 		}
 	}

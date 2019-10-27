@@ -108,7 +108,7 @@ data:
   etcd-conf.json: |
     {
       "name": "{{ .Release.Name }}-etcdcni",
-      "endpoints": "{{ .Values.etcdcni.endpoints }}",
+      "endpoints": {{ .Values.etcdcni.endpoints}},
       "auth": {
         "client": {
           "secureTransport": {{ .Values.etcdcni.auth.client.secureTransport }},

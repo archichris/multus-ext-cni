@@ -18,10 +18,11 @@ var (
 )
 
 func RecVxlan(network string, vxlan *netlink.Vxlan) error {
-	cli, id, err := etcdv3.NewClient()
+	etcdMultus, err := etcdv3.New()
 	if err != nil {
 		return err
 	}
+	cli, id:= etcdMultus.Cli, etcdMultus.Id
 	defer cli.Close() // make sure to close the client
 
 	s, err := concurrency.NewSession(cli)

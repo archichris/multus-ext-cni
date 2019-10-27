@@ -18,13 +18,16 @@ import (
 	"bufio"
 	"io"
 	"io/ioutil"
+
 	// "log"
 	"net"
 	"os"
+	"fmt"
 	"path/filepath"
 	"runtime"
 	"strings"
-
+	"github.com/intel/multus-cni/multus-ipam/backend/allocator"
+	"github.com/intel/multus-cni/logging"
 	"github.com/containernetworking/plugins/plugins/ipam/host-local/backend"
 )
 
@@ -212,10 +215,16 @@ func GetEscapedPath(dataDir string, fname string) string {
 	return filepath.Join(dataDir, fname)
 }
 
+func (s *Store) GetDir() string {
+	return s.dataDir
+}
+
 // LoadRangeSetFromCache is used to load IP range set "startIP:endIP" from cache file
-func (s *Store) LoadRangeSetFromCache() ([]string, error) {
+func (s *Store) LoadCache() ([]allocator.SimpleRange, error) {
+	s.Lock()
+	defer s.Unlock()
 	fname := GetEscapedPath(s.dataDir, cacheName)
-	result := []string{}
+	result := []allocator.SimpleRange{}
 	_, err := os.Stat(fname)
 	if os.IsNotExist(err) { // file do not exist
 		return result, nil
@@ -234,35 +243,121 @@ func (s *Store) LoadRangeSetFromCache() ([]string, error) {
 			}
 			return nil, err
 		}
-		result = append(result, strings.TrimRight(line,"\n"))
+		line = strings.TrimRight(line, "\n\r\t ")
+		pairIP := strings.Split(line, "-")
+		logging.Debugf("load cache %v", pairIP)
+		result = append(result, allocator.SimpleRange{net.ParseIP(pairIP[0]), net.ParseIP(pairIP[1])})
 	}
 }
 
-// FlashRangeSetToCache is used to rewrite ip range set "startIP:endIP" to cache file
-func (s *Store) FlashRangeSetToCache(rangeSet []string) error {
+func (s *Store) FlashCache(srs []allocator.SimpleRange) error {
+	logging.Debugf("Going to flash cache %v", srs)
+	s.Lock()
+	defer s.Unlock()
 	fname := GetEscapedPath(s.dataDir, cacheName)
 	f, err := os.OpenFile(fname, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
-		return err
+		return logging.Errorf("open file %v failed, %v", fname, err)
 	}
 	defer f.Close()
 	defer f.Sync()
-	for _, line := range rangeSet {
-		f.WriteString(line + "\n")
+	for _,sr := range srs{
+		sr.Canonicalize()
+		_, err = f.WriteString(fmt.Sprintf("%s-%s\n",sr.RangeStart.String(), sr.RangeEnd.String())) 
+		if err != nil {
+			return logging.Errorf("write file %s failed, %v", fname, err)
+		}
 	}
 	return nil
 }
-func (s *Store) AppendRangeToCache(r string) error {
-	caches, err := s.LoadRangeSetFromCache()
+
+func (s *Store) AppendCache(sr *allocator.SimpleRange) error {
+	logging.Debugf("Going to append cache %v", *sr)
+	caches, err := s.LoadCache()
 	if err != nil {
 		return err
 	}
-	for _, cr := range caches{
-		if cr == r {
-			return nil
+
+	for _, csr := range caches{
+		if csr.Overlaps(sr) {
+			return logging.Errorf("%v over laps cache %v", *sr, csr)
 		}
 	}
-	caches = append(caches, r)
-	return s.FlashRangeSetToCache(caches)
+	caches = append( caches, *sr )
+	return s.FlashCache(caches)
 }
 
+func (s *Store) DeleteCache(sr *allocator.SimpleRange) error {
+	caches, err := s.LoadCache()
+	if err != nil {
+		return err
+	}
+	for idx, cache := range caches{
+		if cache.Overlaps(sr) {
+			if idx == 0{
+				caches = caches[1:]
+			}else if idx == len(caches) - 1{
+				caches = caches[:idx]
+			}else{
+				caches = append(caches[:idx],caches[idx+1:]...)
+			}
+			break
+		}
+	}
+	return s.FlashCache(caches)
+}
+
+
+// LoadRangeSetFromCache is used to load IP range set "startIP:endIP" from cache file
+// func (s *Store) LoadRangeSetFromCache() ([]string, error) {
+// 	fname := GetEscapedPath(s.dataDir, cacheName)
+// 	result := []string{}
+// 	_, err := os.Stat(fname)
+// 	if os.IsNotExist(err) { // file do not exist
+// 		return result, nil
+// 	}
+// 	f, err := os.Open(fname)
+// 	if os.IsExist(err) {
+// 		return nil, err
+// 	}
+// 	defer f.Close()
+// 	buf := bufio.NewReader(f)
+// 	for {
+// 		line, err := buf.ReadString('\n')
+// 		if err != nil {
+// 			if err == io.EOF { //读取结束，会报EOF
+// 				return result, nil
+// 			}
+// 			return nil, err
+// 		}
+// 		result = append(result, strings.TrimRight(line, "\n"))
+// 	}
+// }
+
+// // FlashRangeSetToCache is used to rewrite ip range set "startIP:endIP" to cache file
+// func (s *Store) FlashRangeSetToCache(rangeSet []string) error {
+// 	fname := GetEscapedPath(s.dataDir, cacheName)
+// 	f, err := os.OpenFile(fname, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer f.Close()
+// 	defer f.Sync()
+// 	for _, line := range rangeSet {
+// 		f.WriteString(line + "\n")
+// 	}
+// 	return nil
+// }
+// func (s *Store) AppendRangeToCache(r string) error {
+// 	caches, err := s.LoadRangeSetFromCache()
+// 	if err != nil {
+// 		return err
+// 	}
+// 	for _, cr := range caches {
+// 		if cr == r {
+// 			return nil
+// 		}
+// 	}
+// 	caches = append(caches, r)
+// 	return s.FlashRangeSetToCache(caches)
+// }
