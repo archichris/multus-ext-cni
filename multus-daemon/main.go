@@ -18,6 +18,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -32,7 +33,10 @@ import (
 	"golang.org/x/net/context"
 )
 
-const requestTimeout = 5 * time.Second
+var (
+	defaultWaitTime   = 5 * time.Second
+	defaultTickerTime = 1 * time.Minute // 6 * time.Hour
+)
 
 // var (
 // 	errInterrupted = errors.New("interrupted")
@@ -41,7 +45,7 @@ const requestTimeout = 5 * time.Second
 
 func init() {
 	//for debug
-	logging.SetLogFile("/tmp/multus-daemon.log")
+	logging.SetLogFile("/host/var/log/multus-daemon.log")
 	logging.SetLogLevel("debug")
 }
 
@@ -80,8 +84,17 @@ func (d *multusd) Run() {
 	d.procHistoryRecord("")
 
 	//todo prevent out of ord between history record and watching
-	//
-	ticker := time.NewTicker(time.Second * 5)
+	ipamcli.IPAMCheck()
+	tickerTime := defaultTickerTime
+	tmp := os.Getenv("TICKER_TIME")
+	if tmp != "" {
+		t, err := strconv.Atoi(tmp)
+		if err != nil {
+			tickerTime = time.Duration(t) * time.Second
+		}
+	}
+	logging.Verbosef("using ticker time %v", tickerTime)
+	ticker := time.NewTicker(tickerTime)
 	for {
 		select {
 		case <-d.ctx.Done():
@@ -101,7 +114,7 @@ func (d *multusd) Watching(ctx context.Context, keyPrefix string) {
 		cli := etcdMultus.Cli
 		if err != nil {
 			logging.Errorf("Create etcd client failed, %v", err)
-			time.Sleep(requestTimeout)
+			time.Sleep(defaultWaitTime)
 			continue
 		}
 		defer cli.Close()
@@ -131,7 +144,7 @@ func (d *multusd) procHistoryRecord(vx string) error {
 		return logging.Errorf("Create etcd client failed, %v", err)
 	}
 	defer cli.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), etcdv3.RequestTimeout)
 	getResp, err := cli.Get(ctx, d.keyDir, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend))
 	cancel()
 	if err != nil {
@@ -205,40 +218,6 @@ func (d *multusd) watchedDelSubnet(name, src string) error {
 	}
 	return nil
 }
-
-// func (d *multusd) CheckIPMA(keyPrefix string) error {
-// 	logging.Verbosef("CheckIPMA %v", keyPrefix)
-// 	cli, _, err := etcdv3.NewClient()
-// 	if err != nil {
-// 		return logging.Errorf("Create etcd client failed, %v", err)
-// 	}
-// 	cli.get
-
-// 	for {
-// 		cli, _, err := etcdv3.NewClient()
-// 		if err != nil {
-// 			logging.Errorf("Create etcd client failed, %v", err)
-// 			time.Sleep(requestTimeout)
-// 			continue
-// 		}
-// 		defer cli.Close()
-// 		rch := cli.Watch(ctx, keyPrefix, clientv3.WithPrefix())
-// 		for wresp := range rch {
-// 			for _, ev := range wresp.Events {
-// 				logging.Verbosef("Watch: %s %q: %q \n", ev.Type, ev.Kv.Key, ev.Kv.Value)
-// 				name, src := etcdv3cli.ParseVxlan(ev.Kv.Key, ev.Kv.Value)
-// 				switch ev.Type.String() {
-// 				case "DELETE":
-// 					d.watchedDelSubnet(name, src)
-// 				case "PUT":
-// 					d.watchedAddSubnet(name, src)
-// 				default:
-// 					logging.Errorf("unexpected operate %s", ev.Type)
-// 				}
-// 			}
-// 		}
-// 	}
-// }
 
 func main() {
 	// install signal process

@@ -66,6 +66,7 @@ type IPAMConfig struct {
 	Ranges     []RangeSet     `json:"ranges"`
 	IPArgs     []net.IP       `json:"-"` // Requested IPs from CNI_ARGS and args
 	ApplyUnit  uint32         `json:"applyUnit,omitempty"`
+	Fixed      uint32         `json:"fixed,omitempty"`
 }
 
 type IPAMEnvArgs struct {

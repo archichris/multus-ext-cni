@@ -41,7 +41,7 @@ func init() {
 	// since namespace ops (unshare, setns) are done for a single thread, we
 	runtime.LockOSThread()
 	//for debug
-	logging.SetLogFile("/tmp/multus-vxlan.log")
+	logging.SetLogFile("/var/log/multus-vxlan.log")
 	logging.SetLogLevel("debug")
 }
 

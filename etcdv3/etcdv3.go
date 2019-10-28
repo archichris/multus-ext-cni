@@ -53,9 +53,9 @@ type authPeer struct {
 }
 
 type EtcdMultus struct {
-	Cli *clientv3.Client
+	Cli        *clientv3.Client
 	RootKeyDir string
-	Id string
+	Id         string
 }
 
 func getInitParams() (etcdCfgDir string, rootKeyDir string, id string) {
@@ -105,7 +105,7 @@ func getEtcdCfg(cfg string) (*etcdCfg, error) {
 	return &etcdCfg, nil
 }
 
-//NewClient Create a new etcd client, and provide a unify id  for node
+//New create a new etcd client, and provide a unify id  for node
 func New() (*EtcdMultus, error) {
 	etcdCfgDir, rootKeyDir, id := getInitParams()
 	logging.Debugf("using parameters: etcdCfgDir:%v, rootKeyDir:%v, id:%v", etcdCfgDir, rootKeyDir, id)
@@ -149,21 +149,52 @@ func New() (*EtcdMultus, error) {
 	}
 	return &EtcdMultus{cli, rootKeyDir, id}, nil
 }
-func (e *EtcdMultus)Close(){
-    e.Cli.Close()
+func (e *EtcdMultus) Close() {
+	e.Cli.Close()
 }
 
 func KeyToMutex(key string) string {
-	ss := strings.Split(filepath.Dir(key), "/")
+	return DirToMutex(filepath.Dir(key))
+}
+func DirToMutex(dir string) string {
+	ss := strings.Split(strings.TrimRight(dir, "/"), "/")
 	mutex := filepath.Join(ss[0], "mutex")
 	for _, s := range ss[1:] {
 		mutex = filepath.Join(mutex, s)
 	}
-	logging.Debugf("key:%v,mutex:%v", key, mutex)
 	return mutex
 }
 
+type DirMutex struct {
+	s *concurrency.Session
+	m *concurrency.Mutex
+}
+
+func LockDir(cli *clientv3.Client, dir string) (*DirMutex, error) {
+	s, err := concurrency.NewSession(cli)
+	if err != nil {
+		return nil, logging.Errorf("create etcd session failed, %v", err)
+	}
+
+	mutex := DirToMutex(dir)
+	m := concurrency.NewMutex(s, mutex)
+
+	if err := m.Lock(context.TODO()); err != nil {
+		s.Close()
+		return nil, logging.Errorf("get etcd locd failed, %v", err)
+	}
+	return &DirMutex{s: s, m: m}, nil
+}
+
+func (dm *DirMutex) Close() {
+	if err := dm.m.Unlock(context.TODO()); err != nil {
+		logging.Debugf("unlock etcd mutex failed, %v", err)
+	}
+	dm.s.Close()
+}
+
 func TransPutKey(c *clientv3.Client, key string, value string, noExist bool) error {
+	logging.Debugf("going to write %v:%v, check=%v", key, value, noExist)
 	cli := c
 	if cli == nil {
 		var err error
@@ -175,24 +206,11 @@ func TransPutKey(c *clientv3.Client, key string, value string, noExist bool) err
 		defer cli.Close()
 	}
 
-	s, err := concurrency.NewSession(cli)
+	dirMutex, err := LockDir(cli, filepath.Base(key))
 	if err != nil {
-		return logging.Errorf("create etcd session failed, %v", err)
+		return err
 	}
-	defer s.Close()
-
-	mutex := KeyToMutex(key)
-	m := concurrency.NewMutex(s, mutex)
-
-	if err := m.Lock(context.TODO()); err != nil {
-		return logging.Errorf("get etcd locd failed, %v", err)
-	}
-
-	defer func() {
-		if err := m.Unlock(context.TODO()); err != nil {
-			logging.Debugf("unlock etcd mutex failed, %v", err)
-		}
-	}()
+	defer dirMutex.Close()
 
 	if noExist {
 		ctx, cancel := context.WithTimeout(context.Background(), RequestTimeout)
@@ -215,6 +233,7 @@ func TransPutKey(c *clientv3.Client, key string, value string, noExist bool) err
 }
 
 func TransDelKey(c *clientv3.Client, key string) error {
+	logging.Debugf("going to del %v", key)
 	cli := c
 	if cli == nil {
 		var err error
@@ -226,24 +245,8 @@ func TransDelKey(c *clientv3.Client, key string) error {
 		defer cli.Close()
 	}
 
-	s, err := concurrency.NewSession(cli)
-	if err != nil {
-		return logging.Errorf("create etcd session failed, %v", err)
-	}
-	defer s.Close()
-
-	mutex := KeyToMutex(key)
-	m := concurrency.NewMutex(s, mutex)
-
-	if err := m.Lock(context.TODO()); err != nil {
-		return logging.Errorf("get etcd locd failed, %v", err)
-	}
-
-	defer func() {
-		if err := m.Unlock(context.TODO()); err != nil {
-			logging.Debugf("unlock etcd mutex failed, %v", err)
-		}
-	}()
+	dirMutex, err := LockDir(cli, filepath.Base(key))
+	defer dirMutex.Close()
 
 	_, err = cli.Delete(context.TODO(), key)
 	if err != nil {
@@ -258,59 +261,3 @@ func TransDelKeys(c *clientv3.Client, keys []string) {
 		TransDelKey(c, k)
 	}
 }
-
-// func GetWithPrefix(prefix string) []*mvccpb.KeyValue{
-
-// 	ctx, cancel := context.WithTimeout(context.Background(), etcdV3.RequestTimeout)
-// 	resp, err := cli.Get(ctx, keyDir, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend))
-// 	cancel()
-// }
-
-// func TransDelKeys(c *clientv3.Client, keys []string) {
-// 	for _,k:= range keys{
-// 		TransDelKey(c, k)
-// 	}
-// }
-
-// s, err := concurrency.NewSession(cli)
-// if err != nil {
-// 	return logging.Errorf("create etcd session failed, %v", err)
-// }
-// defer s.Close()
-
-// var mutex string = ""
-// var m *concurrency.Mutex
-// logging.Debugf("going to del %v from etcd", keys)
-// for _, key := range keys {
-// 	tmp := KeyToMutex(key)
-// 	logging.Debugf("old mutex:%v, new mutex:%v, m:%v", mutex, tmp, m)
-// 	if mutex != tmp {
-// 		if m != nil {
-// 			err = m.Unlock(context.TODO())
-// 			if err != nil {
-// 				logging.Errorf("unlock %v failed, %v", mutex, err)
-// 			}
-// 		}
-// 		mutex = tmp
-// 		m = concurrency.NewMutex(s, mutex)
-// 		if err := m.Lock(context.TODO()); err != nil {
-// 			logging.Errorf("lock %v failed, %v", mutex, err)
-// 			mutex = ""
-// 			m = nil
-// 			continue
-// 		}
-// 	}
-// 	_, err = cli.Delete(context.TODO(), key)
-// 	if err != nil {
-// 		logging.Errorf("del key %v failed", key)
-// 	}
-// 	logging.Debugf("Del key %v", key)
-// }
-
-// if m != nil {
-// 	if m.Unlock(context.TODO()); err != nil {
-// 		logging.Errorf("lock %v failed, %v", mutex, err)
-// 	}
-// }
-// return nil
-// }

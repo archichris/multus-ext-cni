@@ -18,6 +18,7 @@ import (
 	// "encoding/json"
 	// "flag"
 	"fmt"
+	"net"
 	// "net"
 	"strings"
 
@@ -207,7 +208,7 @@ func allocateIP(netConf *allocator.Net, store *disk.Store, containerID string, i
 		for i := 0; i < 3; i++ {
 			if err != nil && strings.Contains(err.Error(), "no IP addresses available in range set") {
 				var sr *allocator.SimpleRange
-				sr, err = etcdv3cli.IPAMApplyIPRange(netConf, &ipamConf.Ranges[idx][0].Subnet)
+				sr, err = etcdv3cli.IPAMApplyIPRange(netConf, (*net.IPNet)(&ipamConf.Ranges[idx][0].Subnet))
 				// logging.Debugf("apply new ip range(%v, %v, %v) return %v, %v, %v", ipamConf.Name, &ipamConf.Ranges[idx][0].Subnet, ipamConf.ApplyUnit, sIP, eIP, err)
 				if err == nil {
 					// store.AppendRangeToCache(fmt.Sprintf("%s-%s", sIP.String(), eIP.String()))

@@ -20,15 +20,16 @@ import (
 	"io/ioutil"
 
 	// "log"
+	"fmt"
 	"net"
 	"os"
-	"fmt"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"github.com/intel/multus-cni/multus-ipam/backend/allocator"
-	"github.com/intel/multus-cni/logging"
+
 	"github.com/containernetworking/plugins/plugins/ipam/host-local/backend"
+	"github.com/intel/multus-cni/logging"
+	"github.com/intel/multus-cni/multus-ipam/backend/allocator"
 )
 
 const lastIPFilePrefix = "last_reserved_ip."
@@ -245,7 +246,7 @@ func (s *Store) LoadCache() ([]allocator.SimpleRange, error) {
 		}
 		line = strings.TrimRight(line, "\n\r\t ")
 		pairIP := strings.Split(line, "-")
-		logging.Debugf("load cache %v", pairIP)
+		// logging.Debugf("load cache %v", pairIP)
 		result = append(result, allocator.SimpleRange{net.ParseIP(pairIP[0]), net.ParseIP(pairIP[1])})
 	}
 }
@@ -261,9 +262,9 @@ func (s *Store) FlashCache(srs []allocator.SimpleRange) error {
 	}
 	defer f.Close()
 	defer f.Sync()
-	for _,sr := range srs{
+	for _, sr := range srs {
 		sr.Canonicalize()
-		_, err = f.WriteString(fmt.Sprintf("%s-%s\n",sr.RangeStart.String(), sr.RangeEnd.String())) 
+		_, err = f.WriteString(fmt.Sprintf("%s-%s\n", sr.RangeStart.String(), sr.RangeEnd.String()))
 		if err != nil {
 			return logging.Errorf("write file %s failed, %v", fname, err)
 		}
@@ -278,12 +279,12 @@ func (s *Store) AppendCache(sr *allocator.SimpleRange) error {
 		return err
 	}
 
-	for _, csr := range caches{
+	for _, csr := range caches {
 		if csr.Overlaps(sr) {
 			return logging.Errorf("%v over laps cache %v", *sr, csr)
 		}
 	}
-	caches = append( caches, *sr )
+	caches = append(caches, *sr)
 	return s.FlashCache(caches)
 }
 
@@ -292,14 +293,14 @@ func (s *Store) DeleteCache(sr *allocator.SimpleRange) error {
 	if err != nil {
 		return err
 	}
-	for idx, cache := range caches{
+	for idx, cache := range caches {
 		if cache.Overlaps(sr) {
-			if idx == 0{
+			if idx == 0 {
 				caches = caches[1:]
-			}else if idx == len(caches) - 1{
+			} else if idx == len(caches)-1 {
 				caches = caches[:idx]
-			}else{
-				caches = append(caches[:idx],caches[idx+1:]...)
+			} else {
+				caches = append(caches[:idx], caches[idx+1:]...)
 			}
 			break
 		}
@@ -307,57 +308,25 @@ func (s *Store) DeleteCache(sr *allocator.SimpleRange) error {
 	return s.FlashCache(caches)
 }
 
+func GetAllNet(d string) []string {
+	dir := d
+	if dir == "" {
+		dir = defaultDataDir
+	}
 
-// LoadRangeSetFromCache is used to load IP range set "startIP:endIP" from cache file
-// func (s *Store) LoadRangeSetFromCache() ([]string, error) {
-// 	fname := GetEscapedPath(s.dataDir, cacheName)
-// 	result := []string{}
-// 	_, err := os.Stat(fname)
-// 	if os.IsNotExist(err) { // file do not exist
-// 		return result, nil
-// 	}
-// 	f, err := os.Open(fname)
-// 	if os.IsExist(err) {
-// 		return nil, err
-// 	}
-// 	defer f.Close()
-// 	buf := bufio.NewReader(f)
-// 	for {
-// 		line, err := buf.ReadString('\n')
-// 		if err != nil {
-// 			if err == io.EOF { //读取结束，会报EOF
-// 				return result, nil
-// 			}
-// 			return nil, err
-// 		}
-// 		result = append(result, strings.TrimRight(line, "\n"))
-// 	}
-// }
+	networks := []string{}
 
-// // FlashRangeSetToCache is used to rewrite ip range set "startIP:endIP" to cache file
-// func (s *Store) FlashRangeSetToCache(rangeSet []string) error {
-// 	fname := GetEscapedPath(s.dataDir, cacheName)
-// 	f, err := os.OpenFile(fname, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	defer f.Close()
-// 	defer f.Sync()
-// 	for _, line := range rangeSet {
-// 		f.WriteString(line + "\n")
-// 	}
-// 	return nil
-// }
-// func (s *Store) AppendRangeToCache(r string) error {
-// 	caches, err := s.LoadRangeSetFromCache()
-// 	if err != nil {
-// 		return err
-// 	}
-// 	for _, cr := range caches {
-// 		if cr == r {
-// 			return nil
-// 		}
-// 	}
-// 	caches = append(caches, r)
-// 	return s.FlashRangeSetToCache(caches)
-// }
+	logging.Debugf("data dir is %v", dir)
+
+	files, _ := ioutil.ReadDir(dir)
+	for _, file := range files {
+		if file.IsDir() {
+			cacheFile := filepath.Join(dir, file.Name(), cacheName)
+			_, err := os.Stat(cacheFile)
+			if err == nil {
+				networks = append(networks, file.Name())
+			}
+		}
+	}
+	return networks
+}

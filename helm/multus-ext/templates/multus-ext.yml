@@ -154,6 +154,7 @@ spec:
         command: ["/entrypoint.sh"]
         args:
         - "--multus-conf-file=auto"
+        - "--daemon-ticker-time=10"
         resources:
           requests:
             cpu: "100m"
@@ -164,6 +165,10 @@ spec:
         securityContext:
           privileged: true
         volumeMounts:
+        - name: data
+          mountPath: /var/lib/cni
+        - name: log
+          mountPath: /host/var/log
         - name: cni
           mountPath: /host/etc/cni/net.d
         - name: cnibin
@@ -182,6 +187,12 @@ spec:
       - name: {{ .Values.daemonset.registrySecret }} 
       {{- end }}
       volumes:
+        - name: data
+          hostPath:
+            path: /var/lib/cni
+        - name: log
+          hostPath:
+            path: /var/log
         - name: cni
           hostPath:
             path: /etc/cni/net.d
@@ -225,11 +236,11 @@ spec:
         app: multus-controller
     spec:
       # hostNetwork: true
-      nodeSelector:
-        beta.kubernetes.io/arch: amd64
-      tolerations:
-      - operator: Exists
-        effect: NoSchedule
+      # nodeSelector:
+      #   beta.kubernetes.io/arch: amd64
+      # tolerations:
+      # - operator: Exists
+      #   effect: NoSchedule
       serviceAccountName: multus
       containers:
       - name: {{ .Values.controller.name }}
@@ -249,7 +260,7 @@ spec:
       volumes:
         - name: cni
           hostPath:
-            path: /etc/cni/net.d  
+            path: /etc/cni/net.d
         - name: log
           hostPath:
             path: /var/log
