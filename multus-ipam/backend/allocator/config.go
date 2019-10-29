@@ -56,9 +56,7 @@ type Net struct {
 // range directly, and wish to preserve backwards compatability
 type IPAMConfig struct {
 	*Range
-	Name string
-	// NetType    string
-	// Master     string
+	Name       string
 	Type       string         `json:"type"`
 	Routes     []*types.Route `json:"routes"`
 	DataDir    string         `json:"dataDir"`
@@ -66,12 +64,16 @@ type IPAMConfig struct {
 	Ranges     []RangeSet     `json:"ranges"`
 	IPArgs     []net.IP       `json:"-"` // Requested IPs from CNI_ARGS and args
 	ApplyUnit  uint32         `json:"applyUnit,omitempty"`
-	Fixed      uint32         `json:"fixed,omitempty"`
+	Fix        bool           `json:"fix,omitempty"`
+	PodName    string
+	K8sNs      string
 }
 
 type IPAMEnvArgs struct {
 	types.CommonArgs
-	IP net.IP `json:"ip,omitempty"`
+	IP                net.IP `json:"ip,omitempty"`
+	K8S_POD_NAMESPACE string `json:"k8sPodNamespace,omitempty"`
+	K8S_POD_NAME      string `json:"k8sPodName,omitempty"`
 }
 
 type IPAMArgs struct {
@@ -123,6 +125,12 @@ func LoadIPAMConfig(bytes []byte, envArgs string) (*Net, string, error) {
 
 		if e.IP != nil {
 			n.IPAM.IPArgs = []net.IP{e.IP}
+		}
+		if e.K8S_POD_NAME != "" {
+			n.IPAM.PodName = e.K8S_POD_NAME
+		}
+		if e.K8S_POD_NAMESPACE != "" {
+			n.IPAM.K8sNs = e.K8S_POD_NAMESPACE
 		}
 	}
 

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"fmt"
+	"math/rand"
 	"net"
 
 	"strings"
@@ -22,6 +23,7 @@ import (
 
 var (
 	leaseDir    = "lease" //multus/netowrkname/key(ipsegment):value(node)
+	fixDir      = "fix"
 	staticDir   = "static"
 	keyTemplate = "%010d-%d"
 	maxApplyTry = 3
@@ -47,8 +49,8 @@ func ipamSimpleRangeToLease(keyDir string, rs *allocator.SimpleRange) string {
 }
 
 // IpamApplyIPRange is used to apply IP range from ectd
-func IPAMApplyIPRange(netConf *allocator.Net, subnet *net.IPNet) (*allocator.SimpleRange, error) {
-	logging.Debugf("Going to do apply IP range from %v", subnet)
+func IPAMApplyIPRange(network string, r *allocator.Range, unit uint32) (*allocator.SimpleRange, error) {
+	logging.Debugf("Going to do apply IP range from %v", *r)
 	etcdMultus, err := etcdv3.New()
 	if err != nil {
 		return nil, err
@@ -56,7 +58,7 @@ func IPAMApplyIPRange(netConf *allocator.Net, subnet *net.IPNet) (*allocator.Sim
 	cli, rKeyDir, id := etcdMultus.Cli, etcdMultus.RootKeyDir, etcdMultus.Id
 	defer cli.Close() // make sure to close the client
 
-	keyDir := filepath.Join(rKeyDir, leaseDir, netConf.Name)
+	keyDir := filepath.Join(rKeyDir, leaseDir, network)
 
 	dirMutex, err := etcdv3.LockDir(cli, keyDir)
 	if err != nil {
@@ -64,7 +66,7 @@ func IPAMApplyIPRange(netConf *allocator.Net, subnet *net.IPNet) (*allocator.Sim
 	}
 	defer dirMutex.Close()
 
-	rs, err := ipamGetFreeIPRange(cli, keyDir, (*net.IPNet)(subnet), netConf.IPAM.ApplyUnit)
+	rs, err := ipamGetFreeIPRange(cli, keyDir, r, unit)
 	if err != nil {
 		return nil, err
 	}
@@ -80,11 +82,17 @@ func IPAMApplyIPRange(netConf *allocator.Net, subnet *net.IPNet) (*allocator.Sim
 }
 
 // GetFreeIPRange is used to find a free IP range
-func ipamGetFreeIPRange(cli *clientv3.Client, keyDir string, subnet *net.IPNet, n uint32) (*allocator.SimpleRange, error) {
+func ipamGetFreeIPRange(cli *clientv3.Client, keyDir string, r *allocator.Range, n uint32) (*allocator.SimpleRange, error) {
 	num := uint32(math.Pow(2, float64(n)))
-	logging.Debugf("ipamGetFreeIPRange(%v,%v,%v)", keyDir, *subnet, num)
-	rips, ripe := ipaddr.Net4To2Uint32((*net.IPNet)(subnet))
+	logging.Debugf("ipamGetFreeIPRange(%v,%v,%v)", keyDir, *r, num)
+
+	rips, ripe := ipaddr.IP4ToUint32(r.RangeStart), ipaddr.IP4ToUint32(r.RangeEnd)
+	tmp := ipaddr.IP4ToUint32(r.Subnet.IP) + 2
+	if rips < tmp {
+		rips = tmp
+	}
 	last := rips
+
 	ctx, cancel := context.WithTimeout(context.Background(), etcdv3.RequestTimeout)
 	resp, err := cli.Get(ctx, keyDir, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend))
 	cancel()
@@ -217,10 +225,6 @@ func IPAMCheck() error {
 	if err != nil {
 		return err
 	}
-	// if len(leases) == 0 {
-	// 	logging.Debugf("No node lease found")
-	// 	return nil
-	// }
 
 	localNets := disk.GetAllNet(os.Getenv("NET_DATA_DIR"))
 	logging.Debugf("local net: %v", localNets)
@@ -246,4 +250,73 @@ func IPAMCheck() error {
 	}
 
 	return nil
+}
+
+// GetFreeIPRange is used to find a free IP range
+func IPAMApplyFixIP(network string, r *allocator.Range, fixInfo string) (*net.IPNet, error) {
+	// netConf *allocator.Net
+	logging.Debugf("Going to do apply fix IP from %v", r)
+	em, err := etcdv3.New()
+	if err != nil {
+		return nil, err
+	}
+	// cli, rKeyDir, id := etcdMultus.Cli, etcdMultus.RootKeyDir, etcdMultus.Id
+	defer em.Close() // make sure to close the client
+
+	keyDir := filepath.Join(em.RootKeyDir, fixDir, network)
+
+	dirMutex, err := etcdv3.LockDir(em.Cli, keyDir)
+	if err != nil {
+		return nil, err
+	}
+	defer dirMutex.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), etcdv3.RequestTimeout)
+	resp, err := em.Cli.Get(ctx, keyDir, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend))
+	cancel()
+	freeIPs := []uint32{}
+	fixIP := uint32(0)
+	rips, ripe := ipaddr.IP4ToUint32(r.RangeStart), ipaddr.IP4ToUint32(r.RangeEnd)
+	tmp := ipaddr.IP4ToUint32(r.Subnet.IP) + 2
+	if rips < tmp {
+		rips = tmp
+	}
+	last := rips
+	for _, ev := range resp.Kvs {
+		// logging.Debugf("Key:%v, Value:%v ", string(ev.Key), string(ev.Value))
+
+		ip := ipaddr.StrToUint32(filepath.Base(string(ev.Key)))
+		if string(ev.Value) == fixInfo {
+			fixIP = ip
+		}
+
+		if ip-last > 0 {
+			for i := last; i < ip; i++ {
+				freeIPs = append(freeIPs, i)
+			}
+		}
+
+		last = ip + 1
+	}
+
+	if fixIP == 0 {
+		for i := last; i < ripe+1; i++ {
+			freeIPs = append(freeIPs, i)
+		}
+		if len(freeIPs) > 0 {
+			fixIP = freeIPs[rand.Intn(len(freeIPs))]
+		} else {
+			return nil, logging.Errorf("no availble fixed ip")
+		}
+	}
+
+	key := filepath.Join(keyDir, fmt.Sprintf("%010d", fixIP))
+
+	logging.Debugf("Going to put %v:%v", key, fixInfo)
+
+	_, err = em.Cli.Put(context.TODO(), key, fixInfo)
+	if err != nil {
+		return nil, logging.Errorf("write key %v to %v failed", key, fixInfo)
+	}
+	return &net.IPNet{IP: ipaddr.Uint32ToIP4(fixIP), Mask: r.Subnet.Mask}, nil
 }

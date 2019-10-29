@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/containernetworking/cni/pkg/types"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/intel/multus-cni/etcdv3"
 	"github.com/intel/multus-cni/ipaddr"
@@ -65,6 +66,8 @@ var _ = Describe("Cli", func() {
 			[
 				{
 					"subnet": "192.168.56.0/24",
+					"rangeStart": "192.168.56.32",
+					"rangeEnd": "192.168.56.159",
 					"gateway": "192.168.56.1",
 					"reserves": [
 						"192.168.56.0",
@@ -82,17 +85,67 @@ var _ = Describe("Cli", func() {
 	}
 }
 `)
+
+	var cniFixCfg = []byte(`
+{
+	"Name": "testfixnet",
+	"cniVersion": "0.3.0",
+	"type": "multus-vxlan",
+	"master": "eth1",
+	"ipMasq": true,
+	"IsGw": false,
+	"IsDefaultGw": false,
+	"hairpinMode": true,
+	"vlan": 0,
+	"vxlan": {
+		"vxlanId": 201,
+		"port": 8472,
+		"learning": false,
+		"gbp": false
+	},
+	"ipam": {
+		"type": "multus-ipam",
+		"ranges": [
+			[
+				{
+					"subnet": "192.168.56.0/24",
+					"rangeStart": "192.168.56.128",
+					"rangeEnd": "192.168.56.255",
+					"gateway": "192.168.56.1",
+					"reserves": [
+						"192.168.56.0",
+						"192.168.56.255"
+					]
+				}
+			]
+		],
+		"fix": true,
+		"routes": [
+			{
+				"dst": "0.0.0.0/0"
+			}
+		]
+	}
+}
+`)
 	var (
-		_, subnet, _ = net.ParseCIDR("192.168.56.0/24")
-		unit         = uint32(4)
-		num          = uint32(2 << 3)
+		subnet, _ = types.ParseCIDR("192.168.56.0/24")
+		rangeTest = allocator.Range{Subnet: *(*types.IPNet)(subnet)}
+		unit      = uint32(4)
+		num       = uint32(2 << 3)
 	)
+
 	BeforeEach(func() {
 		etcdCfgDir = os.Getenv("ETCD_CFG_DIR")
 		etcdRootDir = os.Getenv("ETCD_ROOT_DIR")
 		hostname = os.Getenv("HOSTNAME")
+		ioutil.WriteFile("/tmp/etcd.conf", etcdCfg, 0666)
+		os.Setenv("ETCD_CFG_DIR", "/tmp")
+		os.Setenv("ETCD_ROOT_DIR", "test")
+		os.Setenv("HOSTNAME", "hostname")
 		logging.SetLogFile("/tmp/multus-test.log")
 		logging.SetLogLevel("debug")
+		rangeTest.Canonicalize()
 	})
 
 	AfterEach(func() {
@@ -129,10 +182,11 @@ var _ = Describe("Cli", func() {
 	})
 	Describe("applying ip from etcd", func() {
 		BeforeEach(func() {
-			ioutil.WriteFile("/tmp/etcd.conf", etcdCfg, 0666)
-			os.Setenv("ETCD_CFG_DIR", "/tmp")
-			os.Setenv("ETCD_ROOT_DIR", "test")
-			os.Setenv("HOSTNAME", "hostname")
+			em, _ := etcdv3.New()
+			defer em.Close()
+			em.Cli.Delete(context.TODO(), em.RootKeyDir, clientv3.WithPrefix())
+		})
+		AfterEach(func() {
 			em, _ := etcdv3.New()
 			defer em.Close()
 			em.Cli.Delete(context.TODO(), em.RootKeyDir, clientv3.WithPrefix())
@@ -143,7 +197,7 @@ var _ = Describe("Cli", func() {
 			Expect(err).To(BeNil())
 			defer em.Close()
 			keyDir := filepath.Join(em.RootKeyDir, leaseDir, "testnet")
-			sr, err := ipamGetFreeIPRange(em.Cli, keyDir, subnet, unit)
+			sr, err := ipamGetFreeIPRange(em.Cli, keyDir, &rangeTest, unit)
 			Expect(err).To(BeNil())
 			Expect(ipaddr.IP4ToUint32(sr.RangeEnd) - ipaddr.IP4ToUint32(sr.RangeStart)).To(Equal(num - 1))
 
@@ -158,7 +212,7 @@ var _ = Describe("Cli", func() {
 			err = json.Unmarshal(cniCfg, &netConf)
 			Expect(err).To(BeNil())
 
-			sr, err := IPAMApplyIPRange(&netConf, subnet)
+			sr, err := IPAMApplyIPRange(netConf.Name, &netConf.IPAM.Ranges[0][0], netConf.IPAM.ApplyUnit)
 			Expect(err).To(BeNil())
 			Expect(ipaddr.IP4ToUint32(sr.RangeEnd) - ipaddr.IP4ToUint32(sr.RangeStart)).To(Equal(num - 1))
 			eips, eipe := ipaddr.IP4ToUint32(sr.RangeStart), ipaddr.IP4ToUint32(sr.RangeEnd)
@@ -182,7 +236,7 @@ var _ = Describe("Cli", func() {
 			Expect(err).To(BeNil())
 			n := 4
 			for i := 0; i < n; i++ {
-				sr, err := IPAMApplyIPRange(&netConf, subnet)
+				sr, err := IPAMApplyIPRange(netConf.Name, &netConf.IPAM.Ranges[0][0], netConf.IPAM.ApplyUnit)
 				Expect(err).To(BeNil())
 				Expect(ipaddr.IP4ToUint32(sr.RangeEnd) - ipaddr.IP4ToUint32(sr.RangeStart)).To(Equal(num - 1))
 			}
@@ -219,7 +273,7 @@ var _ = Describe("Cli", func() {
 			n := 3
 			var sri *allocator.SimpleRange
 			for i := 0; i < n; i++ {
-				sr, err := IPAMApplyIPRange(&netConf, subnet)
+				sr, err := IPAMApplyIPRange(netConf.Name, &netConf.IPAM.Ranges[0][0], netConf.IPAM.ApplyUnit)
 				if i == 1 {
 					sri = sr
 				}
@@ -229,7 +283,7 @@ var _ = Describe("Cli", func() {
 			keyDir := filepath.Join(em.RootKeyDir, leaseDir, netConf.Name)
 			l := ipamSimpleRangeToLease(keyDir, sri)
 			etcdv3.TransDelKey(em.Cli, l)
-			sr, err := IPAMApplyIPRange(&netConf, subnet)
+			sr, err := IPAMApplyIPRange(netConf.Name, &netConf.IPAM.Ranges[0][0], netConf.IPAM.ApplyUnit)
 			Expect(err).To(BeNil())
 			Expect(sr.Match(sri)).To(BeTrue())
 		})
@@ -237,10 +291,10 @@ var _ = Describe("Cli", func() {
 	Describe("verification between etcd and local", func() {
 		var netConf = allocator.Net{}
 		BeforeEach(func() {
-			ioutil.WriteFile("/tmp/etcd.conf", etcdCfg, 0666)
-			os.Setenv("ETCD_CFG_DIR", "/tmp")
-			os.Setenv("ETCD_ROOT_DIR", "test")
-			os.Setenv("HOSTNAME", "hostname")
+			// ioutil.WriteFile("/tmp/etcd.conf", etcdCfg, 0666)
+			// os.Setenv("ETCD_CFG_DIR", "/tmp")
+			// os.Setenv("ETCD_ROOT_DIR", "test")
+			// os.Setenv("HOSTNAME", "hostname")
 			em, _ := etcdv3.New()
 			defer em.Close()
 			em.Cli.Delete(context.TODO(), em.RootKeyDir, clientv3.WithPrefix())
@@ -264,13 +318,12 @@ var _ = Describe("Cli", func() {
 		})
 
 		It("etcd have more records than local, after check, local should equal to etcd", func() {
-
 			em, _ := etcdv3.New()
 			defer em.Close()
 			n := 5
 			var srs []*allocator.SimpleRange
 			for i := 0; i < n; i++ {
-				sr, _ := IPAMApplyIPRange(&netConf, subnet)
+				sr, _ := IPAMApplyIPRange(netConf.Name, &netConf.IPAM.Ranges[0][0], netConf.IPAM.ApplyUnit)
 				srs = append(srs, sr)
 			}
 			s, _ := disk.New(netConf.Name, "")
@@ -303,7 +356,7 @@ var _ = Describe("Cli", func() {
 			n := 5
 			var srs []*allocator.SimpleRange
 			for i := 0; i < n; i++ {
-				sr, _ := IPAMApplyIPRange(&netConf, subnet)
+				sr, _ := IPAMApplyIPRange(netConf.Name, &netConf.IPAM.Ranges[0][0], netConf.IPAM.ApplyUnit)
 				s.AppendCache(sr)
 				srs = append(srs, sr)
 			}
@@ -408,6 +461,48 @@ var _ = Describe("Cli", func() {
 			}
 		})
 
+	})
+
+	Describe("testing apply fix ip", func() {
+		var netConf = allocator.Net{}
+		BeforeEach(func() {
+			em, _ := etcdv3.New()
+			defer em.Close()
+			em.Cli.Delete(context.TODO(), em.RootKeyDir, clientv3.WithPrefix())
+			json.Unmarshal(cniFixCfg, &netConf)
+		})
+		AfterEach(func() {
+			em, _ := etcdv3.New()
+			defer em.Close()
+			em.Cli.Delete(context.TODO(), em.RootKeyDir, clientv3.WithPrefix())
+		})
+
+		It("rand apply fix ips and check the ip allocation is fixed", func() {
+			em, _ := etcdv3.New()
+			defer em.Close()
+			netConf := allocator.Net{}
+			json.Unmarshal(cniFixCfg, &netConf)
+			n := 4
+			lease := []*net.IPNet{}
+			for i := 0; i < n; i++ {
+				network, err := IPAMApplyFixIP(netConf.Name, &netConf.IPAM.Ranges[0][0], fmt.Sprintf("tsetpod-%d", i))
+				Expect(err).To(BeNil())
+				lease = append(lease, network)
+			}
+
+			for i := 0; i < n; i++ {
+				for j := 1; j < n; j++ {
+					if i == j {
+						continue
+					}
+					Expect(lease[i].String()).NotTo(Equal(lease[j].String()))
+				}
+				network, err := IPAMApplyFixIP(netConf.Name, &netConf.IPAM.Ranges[0][0], fmt.Sprintf("tsetpod-%d", i))
+				Expect(err).To(BeNil())
+				Expect(lease[i].String()).To(Equal(network.String()))
+			}
+
+		})
 	})
 
 })

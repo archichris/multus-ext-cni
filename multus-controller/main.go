@@ -17,6 +17,7 @@ package main
 import (
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -41,6 +42,7 @@ import (
 const (
 	resyncPeriod              = 5 * time.Minute
 	nodeControllerSyncTimeout = 10 * time.Minute
+	tickerTime                = 1 * time.Minute //todo set to a longer time after testing
 )
 
 type KubeManager struct {
@@ -49,7 +51,6 @@ type KubeManager struct {
 	ctx            context.Context
 	wg             sync.WaitGroup
 	fullCheck      bool
-	keyDir         string
 }
 
 func init() {
@@ -118,7 +119,7 @@ func NewKubeManager(ctx context.Context, wg sync.WaitGroup) (*KubeManager, error
 	return &km, nil
 }
 
-func (km *KubeManager) Run() {
+func (km *KubeManager) WatchNode() {
 	logging.Verbosef("KubeManager is running...")
 	km.nodeController.Run(km.ctx.Done())
 	logging.Verbosef("KubeManager is exiting...")
@@ -127,34 +128,33 @@ func (km *KubeManager) Run() {
 func (km *KubeManager) handleNodeDelEvent(n *apiv1.Node) error {
 	id := strings.Trim(n.Name, " \n\r\t")
 	logging.Verbosef("Node %v is deleted", id)
-	etcdMultus, err := etcdv3.New()
-	cli := etcdMultus.Cli
+	em, err := etcdv3.New()
 	if err != nil {
 		km.fullCheck = true
 		return logging.Errorf("Create etcd client failed, %v", err)
 	}
-	defer cli.Close()
+	defer em.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), etcdv3.RequestTimeout)
-	getResp, err := cli.Get(ctx, km.keyDir, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend))
+	getResp, err := em.Cli.Get(ctx, em.RootKeyDir, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend))
 	cancel()
 	if err != nil {
-		return logging.Errorf("Get %v failed, %v", km.keyDir, err)
+		return logging.Errorf("Get %v failed, %v", em.RootKeyDir, err)
 	}
 
 	delList := []string{}
 
 	for _, ev := range getResp.Kvs {
 		v := strings.Trim(string(ev.Value), " \r\n\t")
-		logging.Debugf("Key:%v, Value:%v, ID:%v, match:%v ", string(ev.Key), string(ev.Value), etcdMultus.Id, etcdMultus.Id == v)
-		if v == etcdMultus.Id {
+		logging.Debugf("Key:%v, Value:%v, ID:%v, match:%v ", string(ev.Key), string(ev.Value), id, id == v)
+		if v == id {
 			delList = append(delList, string(ev.Key))
 		}
 	}
 
 	if len(delList) > 0 {
 		logging.Debugf("Going to del %v", delList)
-		etcdv3.TransDelKeys(cli, delList)
+		etcdv3.TransDelKeys(em.Cli, delList)
 	}
 	return nil
 }
@@ -175,16 +175,21 @@ func main() {
 	}()
 
 	wg = sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		km, err := NewKubeManager(ctx, wg)
-		if err == nil {
-			km.Run()
-		} else {
-			logging.Errorf("create kube manager failed, %v", err)
-		}
-		wg.Done()
-	}()
+	km, err := NewKubeManager(ctx, wg)
+	if err == nil {
+		wg.Add(1)
+		go func() {
+			km.WatchNode()
+			wg.Done()
+		}()
+		wg.Add(1)
+		go func() {
+			km.PeriodChkFixIP()
+			wg.Done()
+		}()
+	} else {
+		logging.Errorf("create kube manager failed, %v", err)
+	}
 
 	logging.Verbosef("Waiting for all goroutines to exit")
 	// Block waiting for all the goroutines to finish.
@@ -206,4 +211,50 @@ func shutdownHandler(ctx context.Context, sigs chan os.Signal, cancel context.Ca
 
 	// Unregister to get default OS nuke behaviour in case we don't exit cleanly
 	signal.Stop(sigs)
+}
+
+func (km *KubeManager) PeriodChkFixIP() {
+	ticker := time.NewTicker(tickerTime)
+	for {
+		select {
+		case <-km.ctx.Done():
+			logging.Verbosef("ctx stop multusd")
+			return
+		case <-ticker.C:
+			logging.Debugf("ticker run")
+			km.CheckFixIP()
+		}
+	}
+}
+
+func (km *KubeManager) CheckFixIP() error {
+	em, err := etcdv3.New()
+	if err != nil {
+		return logging.Errorf("Create etcd client failed, %v", err)
+	}
+	defer em.Close()
+	fixKeyDir := filepath.Join(em.RootKeyDir, "fix")
+	ctx, cancel := context.WithTimeout(context.Background(), etcdv3.RequestTimeout)
+	getResp, err := em.Cli.Get(ctx, fixKeyDir, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend))
+	cancel()
+	if err != nil {
+		return logging.Errorf("Get %v failed, %v", em.RootKeyDir, err)
+	}
+
+	delList := []string{}
+	for _, ev := range getResp.Kvs {
+
+		v := strings.Split(strings.Trim(string(ev.Value), " \r\n\t"), ":")
+		ns, name := v[0], v[1]
+		pod, err := km.client.CoreV1().Pods(ns).Get(name, metav1.GetOptions{})
+		if (err != nil) || (pod == nil) {
+			delList = append(delList, string(ev.Key))
+		}
+	}
+
+	if len(delList) > 0 {
+		logging.Debugf("Going to del %v", delList)
+		etcdv3.TransDelKeys(em.Cli, delList)
+	}
+	return nil
 }

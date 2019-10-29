@@ -18,8 +18,6 @@ import (
 	// "encoding/json"
 	// "flag"
 	"fmt"
-	"net"
-	// "net"
 	"strings"
 
 	"github.com/containernetworking/cni/pkg/skel"
@@ -102,15 +100,19 @@ func cmdAdd(args *skel.CmdArgs) error {
 	}
 	defer store.Close()
 
-	result.IPs, err = allocateIP(netConf, store, args.ContainerID, args.IfName)
-	if err != nil {
-		return logging.Errorf("allocateIP failed, %v", err)
+	if ipamConf.Fix == false {
+		result.IPs, err = allocateIP(netConf, store, args.ContainerID, args.IfName)
+		if err != nil {
+			return logging.Errorf("allocateIP failed, %v", err)
+		}
+	} else {
+		result.IPs, err = allocateFixIP(netConf)
+		if err != nil {
+			return logging.Errorf("allocate fix IP failed, %v", err)
+		}
 	}
 
 	result.Routes = ipamConf.Routes
-
-	// s = fmt.Sprintf("result:%+v\n", result)
-	// f.WriteString(s)
 
 	return types.PrintResult(result, confVersion)
 }
@@ -208,7 +210,7 @@ func allocateIP(netConf *allocator.Net, store *disk.Store, containerID string, i
 		for i := 0; i < 3; i++ {
 			if err != nil && strings.Contains(err.Error(), "no IP addresses available in range set") {
 				var sr *allocator.SimpleRange
-				sr, err = etcdv3cli.IPAMApplyIPRange(netConf, (*net.IPNet)(&ipamConf.Ranges[idx][0].Subnet))
+				sr, err = etcdv3cli.IPAMApplyIPRange(netConf.Name, &ipamConf.Ranges[idx][0], ipamConf.ApplyUnit)
 				// logging.Debugf("apply new ip range(%v, %v, %v) return %v, %v, %v", ipamConf.Name, &ipamConf.Ranges[idx][0].Subnet, ipamConf.ApplyUnit, sIP, eIP, err)
 				if err == nil {
 					// store.AppendRangeToCache(fmt.Sprintf("%s-%s", sIP.String(), eIP.String()))
@@ -239,4 +241,24 @@ func allocateIP(netConf *allocator.Net, store *disk.Store, containerID string, i
 
 	logging.Debugf("Return IPS: %v", IPs)
 	return IPs, nil
+}
+
+func allocateFixIP(netConf *allocator.Net) ([]*current.IPConfig, error) {
+	ipamConf := netConf.IPAM
+	if (ipamConf.PodName == "") || (ipamConf.K8sNs == "") {
+		return nil, logging.Errorf("missing fix infor PodName(%v), K8sNs(%v)", ipamConf.PodName, ipamConf.K8sNs)
+	}
+
+	fixInfo := strings.Trim(ipamConf.K8sNs+":"+ipamConf.PodName, "\r\n\t ")
+	n, err := etcdv3cli.IPAMApplyFixIP(netConf.Name, &ipamConf.Ranges[0][0], fixInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	return []*current.IPConfig{
+		&current.IPConfig{
+			Version: "4",
+			Address: *n,
+			Gateway: ipamConf.Ranges[0][0].Gateway},
+	}, nil
 }
