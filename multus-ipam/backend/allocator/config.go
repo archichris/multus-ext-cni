@@ -71,9 +71,9 @@ type IPAMConfig struct {
 
 type IPAMEnvArgs struct {
 	types.CommonArgs
-	IP                net.IP `json:"ip,omitempty"`
-	K8S_POD_NAMESPACE string `json:"k8sPodNamespace,omitempty"`
-	K8S_POD_NAME      string `json:"k8sPodName,omitempty"`
+	IP                net.IP                     `json:"ip,omitempty"`
+	K8S_POD_NAMESPACE types.UnmarshallableString `json:"k8sPodNamespace,omitempty"`
+	K8S_POD_NAME      types.UnmarshallableString `json:"k8sPodName,omitempty"`
 }
 
 type IPAMArgs struct {
@@ -127,10 +127,10 @@ func LoadIPAMConfig(bytes []byte, envArgs string) (*Net, string, error) {
 			n.IPAM.IPArgs = []net.IP{e.IP}
 		}
 		if e.K8S_POD_NAME != "" {
-			n.IPAM.PodName = e.K8S_POD_NAME
+			n.IPAM.PodName = string(e.K8S_POD_NAME)
 		}
 		if e.K8S_POD_NAMESPACE != "" {
-			n.IPAM.K8sNs = e.K8S_POD_NAMESPACE
+			n.IPAM.K8sNs = string(e.K8S_POD_NAMESPACE)
 		}
 	}
 

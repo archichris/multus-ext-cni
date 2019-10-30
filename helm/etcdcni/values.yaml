@@ -47,7 +47,7 @@ auth:
     enableAuthentication: false
 
 persistentVolume:
-  enabled: false
+  enabled: true
   # storage: "1Gi"
   ## etcd data Persistent Volume Storage Class
   ## If defined, storageClassName: <storageClass>

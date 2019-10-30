@@ -1,20 +1,21 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
-  name: example-vxlan
+  name: vxlanfix
   labels:
-    app: example-vxlan
+    app: vxlanfix
 spec:
+  serviceName: "vxlanfix"
   replicas: 2
   selector:
     matchLabels:
-      app: example-vxlan
+      app: vxlanfix
   template:
     metadata:
       labels:
-        app: example-vxlan
+        app: vxlanfix
       annotations:
-        k8s.v1.cni.cncf.io/mynetworks: vxlan1
+        k8s.v1.cni.cncf.io/mynetworks: vxlanfix
     spec:
       affinity:
         podAntiAffinity:
@@ -24,10 +25,10 @@ spec:
                   - key: app
                     operator: In
                     values:
-                      - example-vxlan
+                      - vxlanfix
               topologyKey: "kubernetes.io/hostname"
       containers:
-        - name: example-vxlan
+        - name: vxlanfix
           image: busybox
           command:
             - sleep

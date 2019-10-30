@@ -20,7 +20,7 @@ import (
 	apiv1 "k8s.io/api/core/v1"
 )
 
-var _ = Describe("Main", func() {
+var _ = Describe("Controller", func() {
 	var etcdCfgDir, etcdRootDir, hostname, kubeConf string
 	// idCfg := []byte("node201")
 	var etcdCfg = []byte(`
@@ -148,13 +148,14 @@ var _ = Describe("Main", func() {
 	})
 
 	AfterEach(func() {
+		em, _ := etcdv3.New()
+		defer em.Close()
+		em.Cli.Delete(context.TODO(), em.RootKeyDir, clientv3.WithPrefix())
 		os.Setenv("ETCD_CFG_DIR", etcdCfgDir)
 		os.Setenv("ETCD_ROOT_DIR", etcdRootDir)
 		os.Setenv("HOSTNAME", hostname)
 		os.Setenv("KUBE_CONFIG", kubeConf)
-		em, _ := etcdv3.New()
-		defer em.Close()
-		em.Cli.Delete(context.TODO(), em.RootKeyDir, clientv3.WithPrefix())
+
 	})
 	It("handle node delete", func() {
 		em, _ := etcdv3.New()

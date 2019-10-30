@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/containernetworking/plugins/plugins/ipam/host-local/backend"
+	"github.com/intel/multus-cni/disk"
 	"github.com/intel/multus-cni/logging"
 	"github.com/intel/multus-cni/multus-ipam/backend/allocator"
 )
@@ -35,13 +36,13 @@ import (
 const lastIPFilePrefix = "last_reserved_ip."
 const LineBreak = "\r\n"
 
-var defaultDataDir = "/var/lib/cni/networks"
+var defaultDataDir = "/var/lib/cni/mulnets"
 var cacheName = "rangeset_cache"
 
 // Store is a simple disk-backed store that creates one file per IP
 // address in a given directory. The contents of the file are the container ID.
 type Store struct {
-	*FileLock
+	*disk.FileLock
 	dataDir string
 }
 
@@ -57,7 +58,7 @@ func New(network, dataDir string) (*Store, error) {
 		return nil, err
 	}
 
-	lk, err := NewFileLock(dir)
+	lk, err := disk.NewFileLock(dir)
 	if err != nil {
 		return nil, err
 	}

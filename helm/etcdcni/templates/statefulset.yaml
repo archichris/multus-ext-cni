@@ -17,17 +17,23 @@ spec:
   selector:
     matchLabels:
       app: {{ template "etcd.name" . }}
-      #app.kubernetes.io/instance: {{ .Release.Name }}
+      failure-domain.beta.kubernetes.io/region: cn-north-1
+      failure-domain.beta.kubernetes.io/zone: cn-north-1a
   serviceName: {{ template "etcd.fullname" . }}
   replicas: {{ .Values.replicas }}
   template:
     metadata:
+      annotations:
+        metrics.alpha.kubernetes.io/custom-endpoints: '[{"api":"","path":"","port":"","names":""}]'
+        pod.alpha.kubernetes.io/initialized: "true"
       name: {{ template "etcd.fullname" . }}
       labels:
         heritage: {{ .Release.Service | quote }}
         release: {{ .Release.Name | quote }}
         chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
         app: {{ template "etcd.name" . }}
+        failure-domain.beta.kubernetes.io/region: cn-north-1
+        failure-domain.beta.kubernetes.io/zone: cn-north-1a
     spec:
 {{- if .Values.affinity }}
       affinity:
@@ -236,22 +242,19 @@ spec:
       {{- end }}      
   {{- if .Values.persistentVolume.enabled }}
   volumeClaimTemplates:
-  - metadata:
-      name: datadir
-    spec:
-      accessModes:
-        - "ReadWriteOnce"
-      resources:
-        requests:
-          # upstream recommended max is 700M
-          storage: "{{ .Values.persistentVolume.storage }}"
-    {{- if .Values.persistentVolume.storageClass }}
-    {{- if (eq "-" .Values.persistentVolume.storageClass) }}
-      storageClassName: ""
-    {{- else }}
-      storageClassName: "{{ .Values.persistentVolume.storageClass }}"
-    {{- end }}
-    {{- end }}
+    - metadata:
+        annotations:
+          volume.beta.kubernetes.io/storage-class: sata
+          volume.beta.kubernetes.io/storage-provisioner: flexvolume-huawei.com/fuxivol
+        name: datadir
+        namespace: {{ .Values.namespace }}
+      spec:
+        accessModes:
+          - ReadWriteMany
+        resources:
+          requests:
+            storage: 10Gi
+        volumeMode: Filesystem
   {{- else }}
       - name: datadir
       {{- if .Values.memoryMode }}

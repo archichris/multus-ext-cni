@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 
+	// "strings"
+
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/intel/multus-cni/etcdv3"
@@ -485,7 +487,7 @@ var _ = Describe("Cli", func() {
 			n := 4
 			lease := []*net.IPNet{}
 			for i := 0; i < n; i++ {
-				network, err := IPAMApplyFixIP(netConf.Name, &netConf.IPAM.Ranges[0][0], fmt.Sprintf("tsetpod-%d", i))
+				network, err := IPAMApplyFixIP(netConf.Name, &netConf.IPAM.Ranges[0][0], fmt.Sprintf("tsetpod:%d", i))
 				Expect(err).To(BeNil())
 				lease = append(lease, network)
 			}
@@ -497,11 +499,27 @@ var _ = Describe("Cli", func() {
 					}
 					Expect(lease[i].String()).NotTo(Equal(lease[j].String()))
 				}
-				network, err := IPAMApplyFixIP(netConf.Name, &netConf.IPAM.Ranges[0][0], fmt.Sprintf("tsetpod-%d", i))
+				network, err := IPAMApplyFixIP(netConf.Name, &netConf.IPAM.Ranges[0][0], fmt.Sprintf("tsetpod:%d", i))
 				Expect(err).To(BeNil())
 				Expect(lease[i].String()).To(Equal(network.String()))
 			}
-
+			ctx, cancel := context.WithTimeout(context.Background(), etcdv3.RequestTimeout)
+			keyDir := filepath.Join(em.RootKeyDir, fixDir, netConf.Name)
+			resp, _ := em.Cli.Get(ctx, keyDir, clientv3.WithPrefix())
+			cancel()
+			Expect(len(resp.Kvs)).To(Equal(n))
+			for _, ev := range resp.Kvs {
+				k := ipaddr.Uint32ToIP4(ipaddr.StrToUint32(filepath.Base(string(ev.Key))))
+				match := false
+				for _, n := range lease {
+					logging.Debugf("%v - %v", n.IP, k)
+					if n.IP.String() == k.String() {
+						match = true
+						break
+					}
+				}
+				Expect(match).To(BeTrue())
+			}
 		})
 	})
 

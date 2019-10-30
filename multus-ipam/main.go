@@ -125,25 +125,27 @@ func cmdDel(args *skel.CmdArgs) error {
 
 	ipamConf := netConf.IPAM
 
-	store, err := disk.New(ipamConf.Name, ipamConf.DataDir)
-	if err != nil {
-		return err
-	}
-	defer store.Close()
-
-	// Loop through all ranges, releasing all IPs, even if an error occurs
-	var errors []string
-	for idx, rangeset := range ipamConf.Ranges {
-		ipAllocator := allocator.NewIPAllocator(&rangeset, store, idx)
-
-		err := ipAllocator.Release(args.ContainerID, args.IfName)
+	if ipamConf.Fix == false {
+		store, err := disk.New(ipamConf.Name, ipamConf.DataDir)
 		if err != nil {
-			errors = append(errors, err.Error())
+			return err
 		}
-	}
+		defer store.Close()
 
-	if errors != nil {
-		return fmt.Errorf(strings.Join(errors, ";"))
+		// Loop through all ranges, releasing all IPs, even if an error occurs
+		var errors []string
+		for idx, rangeset := range ipamConf.Ranges {
+			ipAllocator := allocator.NewIPAllocator(&rangeset, store, idx)
+
+			err := ipAllocator.Release(args.ContainerID, args.IfName)
+			if err != nil {
+				errors = append(errors, err.Error())
+			}
+		}
+
+		if errors != nil {
+			return fmt.Errorf(strings.Join(errors, ";"))
+		}
 	}
 	return nil
 }

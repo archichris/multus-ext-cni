@@ -35,7 +35,7 @@ RENAME_SOURCE_CONFIG_FILE=false
 # host_etcd configuration
 EXTEND_FUNCTION=true
 DAEMON_BIN_FILE="/usr/src/multus-cni/bin/multus-daemon"
-DAEMON_TICKER_TIME="21600"
+MULTUS_TICKER_TIME="21600"
 DAEMON_NET_DATA_DIR="/var/lib/cni/networks"
 ETCD_CONF_FILE="/tmp/etcd-conf/etcd.conf"
 ETCD_FILE_HOST_DIR="/host/etc/cni/net.d/multus.d/etcd"
@@ -75,7 +75,7 @@ function usage() {
   # multus-ipam Configuration
   echo -e "\t--extend-function=true (enable extend function)"
   echo -e "\t--etcd-conf-file=$ETCD_CONF_FILE"
-  echo -e "\t--daemon-ticker-time=$DAEMON_TICKER_TIME"
+  echo -e "\t--multus-ticker-time=$MULTUS_TICKER_TIME"
   echo -e "\t--etcd-file-host=$ETCD_FILE_HOST"
   # echo -e "\t--multus-ipam-bin-file=$MULTUS_IPAM_BIN_FILE"
   # echo -e "\t--multus-vxlan-bin-file=$MULTUS_VXLAN_BIN_FILE"
@@ -155,8 +155,8 @@ while [ "$1" != "" ]; do
   --ext-driver-dir)
     EXT_DRIVER_DIR=$VALUE
     ;;
-  --daemon-ticker-time)
-    DAEMON_TICKER_TIME=$VALUE
+  --multus-ticker-time)
+    MULTUS_TICKER_TIME=$VALUE
     ;;
   *)
     warn "unknown parameter \"$PARAM\""
@@ -402,7 +402,7 @@ EOF
 }
 generateMultusConf
 
-ETCD_CFG_DIR=${ETCD_FILE_HOST_DIR} TICKER_TIME=${TICKER_TIME} ${DAEMON_BIN_FILE} &
+ETCD_CFG_DIR=${ETCD_FILE_HOST_DIR} TICKER_TIME=${MULTUS_TICKER_TIME} ${DAEMON_BIN_FILE} &
 
 # ---------------------- end Generate "00-multus.conf".
 

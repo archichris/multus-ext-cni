@@ -15,9 +15,11 @@
 package main
 
 import (
+	"math/rand"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -39,10 +41,11 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-const (
+var (
 	resyncPeriod              = 5 * time.Minute
+	delWaitTime               = 24 * time.Hour
 	nodeControllerSyncTimeout = 10 * time.Minute
-	tickerTime                = 1 * time.Minute //todo set to a longer time after testing
+	defaultTickerTime         = time.Duration(120+rand.Intn(60)) * time.Minute //todo set to a longer time after testing
 )
 
 type KubeManager struct {
@@ -51,6 +54,7 @@ type KubeManager struct {
 	ctx            context.Context
 	wg             sync.WaitGroup
 	fullCheck      bool
+	waitDelFixIPs  map[string]time.Time
 }
 
 func init() {
@@ -116,6 +120,7 @@ func NewKubeManager(ctx context.Context, wg sync.WaitGroup) (*KubeManager, error
 	// km.nodeStore = listers.NewNodeLister(indexer)
 	km.ctx = ctx
 	km.wg = wg
+	km.waitDelFixIPs = make(map[string]time.Time)
 	return &km, nil
 }
 
@@ -214,6 +219,14 @@ func shutdownHandler(ctx context.Context, sigs chan os.Signal, cancel context.Ca
 }
 
 func (km *KubeManager) PeriodChkFixIP() {
+	tickerTime := defaultTickerTime
+	tmp := os.Getenv("TICKER_TIME")
+	if tmp != "" {
+		t, err := strconv.Atoi(tmp)
+		if err == nil {
+			tickerTime = time.Duration(t+rand.Intn(int(t/2))) * time.Second
+		}
+	}
 	ticker := time.NewTicker(tickerTime)
 	for {
 		select {
@@ -242,14 +255,31 @@ func (km *KubeManager) CheckFixIP() error {
 	}
 
 	delList := []string{}
+	tmpMap := map[string]time.Time{}
 	for _, ev := range getResp.Kvs {
-
 		v := strings.Split(strings.Trim(string(ev.Value), " \r\n\t"), ":")
 		ns, name := v[0], v[1]
 		pod, err := km.client.CoreV1().Pods(ns).Get(name, metav1.GetOptions{})
 		if (err != nil) || (pod == nil) {
-			delList = append(delList, string(ev.Key))
+			tmpMap[string(ev.Key)] = time.Now()
+			if dur, ok := km.waitDelFixIPs[string(ev.Key)]; ok {
+				if time.Now().Sub(dur) > delWaitTime {
+					delList = append(delList, string(ev.Key))
+				}
+			} else {
+				km.waitDelFixIPs[string(ev.Key)] = time.Now()
+			}
 		}
+	}
+	for k := range km.waitDelFixIPs {
+		if _, ok := tmpMap[k]; ok {
+			continue
+		}
+		delete(km.waitDelFixIPs, k)
+	}
+
+	for _, k := range delList {
+		delete(km.waitDelFixIPs, k)
 	}
 
 	if len(delList) > 0 {

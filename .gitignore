@@ -12,3 +12,4 @@ gopath/
 
 # Local file
 *.local
+*.local.*

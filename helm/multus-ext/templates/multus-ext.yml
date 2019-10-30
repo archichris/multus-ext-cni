@@ -154,7 +154,7 @@ spec:
         command: ["/entrypoint.sh"]
         args:
         - "--multus-conf-file=auto"
-        - "--daemon-ticker-time=10"
+        - "--multus-ticker-time=60"
         resources:
           requests:
             cpu: "100m"
@@ -235,20 +235,19 @@ spec:
       labels:
         app: multus-controller
     spec:
-      # hostNetwork: true
-      # nodeSelector:
-      #   beta.kubernetes.io/arch: amd64
-      # tolerations:
-      # - operator: Exists
-      #   effect: NoSchedule
       serviceAccountName: multus
       containers:
       - name: {{ .Values.controller.name }}
         image: {{ .Values.controller.image }}
         imagePullPolicy: {{ .Values.controller.pullPolicy }}
+        command: ["/start_controller.sh"]
+        args:
+        - "--multus-ticker-time=60"
         securityContext:
           privileged: true
         volumeMounts:
+        - name: data
+          mountPath: /var/lib/cni
         - name: cni
           mountPath: /host/etc/cni/net.d
         - name: log
@@ -264,5 +263,7 @@ spec:
         - name: log
           hostPath:
             path: /var/log
-
+        - name: data
+          hostPath:
+            path: /var/lib/cni
 

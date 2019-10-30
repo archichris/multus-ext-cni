@@ -11,7 +11,7 @@ crd:
 daemonset:
   name: multus-ext
   namespace: kube-system
-  image: "swr.cn-north-1.myhuaweicloud.com/unc/multus-ext:v0.3.9"
+  image: "swr.cn-north-1.myhuaweicloud.com/unc/multus-ext:v0.6.0"
   pullPolicy: "IfNotPresent"
   pullSecret: true
   registrySecret: registry-secret
@@ -19,7 +19,7 @@ daemonset:
 controller:
   name: multus-controller
   namespace: kube-system
-  image: "swr.cn-north-1.myhuaweicloud.com/unc/multus-controller:v0.3.9"
+  image: "swr.cn-north-1.myhuaweicloud.com/unc/multus-controller:v0.6.0"
   pullPolicy: "IfNotPresent"
   pullSecret: false
   registrySecret: registry-secret

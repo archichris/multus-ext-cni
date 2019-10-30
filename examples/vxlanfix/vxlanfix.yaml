@@ -1,7 +1,7 @@
 apiVersion: "k8s.cni.cncf.io/v1"
 kind: NetworkDefinition
 metadata:
-  name: vxlan1
+  name: vxlanfix
 spec:
   config: '{
     "cniVersion": "0.3.0",
@@ -24,8 +24,8 @@ spec:
     [
     {
     "subnet": "192.168.109.0/24",
-    "rangeStart": "192.168.109.0",
-    "rangeEnd": "192.168.109.223",
+    "rangeStart": "192.168.109.224",
+    "rangeEnd": "192.168.109.255",
     "gateway": "192.168.109.1",
     "reserves":
     [
@@ -35,6 +35,7 @@ spec:
     }
     ]
     ],
+    "fix": true,
     "routes": [
     { "dst": "0.0.0.0/0" }
     ]

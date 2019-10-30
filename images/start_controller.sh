@@ -7,6 +7,7 @@ set -e
 # Set our known directories.
 MULTUS_KUBECONFIG_FILE_HOST="host/etc/cni/net.d/multus.d/multus.kubeconfig"
 ETCD_FILE_HOST_DIR="/host/etc/cni/net.d/multus.d/etcd"
+MULTUS_TICKER_TIME="21600"
 MULTUS_LOG_LEVEL="error"
 MULTUS_LOG_FILE="/var/log/multus-controller.log"
 
@@ -15,6 +16,7 @@ function usage() {
   echo -e "This is an entrypoint script for Multus CNI to overlay its binary and "
   echo -e "\t--multus-kubeconfig-file-host=$MULTUS_KUBECONFIG_FILE_HOST"
   echo -e "\t--etcd-file-host-dir=$ETCD_FILE_HOST_DIR"
+  echo -e "\t--multus-ticker-time=$MULTUS_TICKER_TIME"
   echo -e "\t--multus-log-level=$MULTUS_LOG_LEVEL (empty by default, used only with --multus-conf-file=auto)"
   echo -e "\t--multus-log-file=$MULTUS_LOG_FILE (empty by default, used only with --multus-conf-file=auto)"
 }
@@ -52,6 +54,9 @@ while [ "$1" != "" ]; do
   --multus-log-file)
     MULTUS_LOG_FILE=$VALUE
     ;;
+  --multus-ticker-time)
+    MULTUS_TICKER_TIME=$VALUE
+    ;;
   *)
     warn "unknown parameter \"$PARAM\""
     ;;
@@ -59,4 +64,4 @@ while [ "$1" != "" ]; do
   shift
 done
 
-KUBE_CONFIG=${MULTUS_KUBECONFIG_FILE_HOST} ETCD_CFG_DIR=${ETCD_FILE_HOST_DIR}  LOG_LEVEL=${MULTUS_LOG_LEVEL} LOG_FILE=${MULTUS_LOG_FILE} /multus-controller
+KUBE_CONFIG=${MULTUS_KUBECONFIG_FILE_HOST} ETCD_CFG_DIR=${ETCD_FILE_HOST_DIR} TICKER_TIME=${MULTUS_TICKER_TIME} LOG_LEVEL=${MULTUS_LOG_LEVEL} LOG_FILE=${MULTUS_LOG_FILE} /multus-controller

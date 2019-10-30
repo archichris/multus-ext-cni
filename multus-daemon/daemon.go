@@ -15,6 +15,7 @@
 package main
 
 import (
+	"math/rand"
 	"net"
 	"os"
 	"os/signal"
@@ -35,7 +36,7 @@ import (
 
 var (
 	defaultWaitTime   = 5 * time.Second
-	defaultTickerTime = 1 * time.Minute // 6 * time.Hour
+	defaultTickerTime = time.Duration(60+rand.Intn(30)) * time.Minute // 6 * time.Hour
 )
 
 // var (
@@ -89,8 +90,8 @@ func (d *multusd) Run() {
 	tmp := os.Getenv("TICKER_TIME")
 	if tmp != "" {
 		t, err := strconv.Atoi(tmp)
-		if err != nil {
-			tickerTime = time.Duration(t) * time.Second
+		if err == nil {
+			tickerTime = time.Duration(t+rand.Intn(int(t/2))) * time.Second
 		}
 	}
 	logging.Verbosef("using ticker time %v", tickerTime)
@@ -103,6 +104,7 @@ func (d *multusd) Run() {
 		case <-ticker.C:
 			logging.Debugf("ticker run")
 			ipamcli.IPAMCheck()
+			vxcli.CacheToEtcd()
 		}
 	}
 }
