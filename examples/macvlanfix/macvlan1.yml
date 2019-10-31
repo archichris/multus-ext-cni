@@ -1,7 +1,7 @@
 apiVersion: "k8s.cni.cncf.io/v1"
 kind: NetworkDefinition
 metadata:
-  name: macvlan1
+  name: mv1f
 spec:
   config: '{
       "cniVersion": "0.3.0",
@@ -12,17 +12,19 @@ spec:
         "type": "multus-ipam",
         "ranges": [
           [
-            { 
+            {
               "subnet": "10.103.0.0/16",
               "gateway": "10.103.0.1",
-              "rangeStart": "10.103.0.0",
-              "rangeEnd": "10.103.200.255",
+              "rangeStart": "10.103.201.0",
+              "rangeEnd": "10.103.255.255",
               "reserves":["10.103.0.0","10.103.0.255"]
             }
           ]
         ],
+        "fix": true,
         "routes": [
           { "dst": "0.0.0.0/0" }
         ]
       }
     }'
+

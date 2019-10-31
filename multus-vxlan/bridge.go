@@ -21,6 +21,7 @@ import (
 	"net"
 	"syscall"
 
+	"github.com/intel/multus-cni/logging"
 	"github.com/j-keck/arping"
 	"github.com/vishvananda/netlink"
 
@@ -36,17 +37,19 @@ import (
 
 // For testcases to force an error after IPAM has been performed
 var debugPostIPAMError error
+var brNameTmp = "mulbr.%s"
 
 type BridgeNetConf struct {
 	// BrName       string `json:"bridge"`
-	IsGW         bool `json:"isGateway"`
-	IsDefaultGW  bool `json:"isDefaultGateway"`
-	ForceAddress bool `json:"forceAddress"`
-	IPMasq       bool `json:"ipMasq"`
-	MTU          int  `json:"mtu"`
-	HairpinMode  bool `json:"hairpinMode"`
-	PromiscMode  bool `json:"promiscMode"`
-	Vlan         int  `json:"vlan"`
+	IsGW         bool   `json:"isGateway"`
+	IsDefaultGW  bool   `json:"isDefaultGateway"`
+	ForceAddress bool   `json:"forceAddress"`
+	IPMasq       bool   `json:"ipMasq"`
+	MTU          int    `json:"mtu"`
+	HairpinMode  bool   `json:"hairpinMode"`
+	PromiscMode  bool   `json:"promiscMode"`
+	Vlan         int    `json:"vlan"`
+	BrName       string `json:"brName"`
 }
 
 type gwInfo struct {
@@ -312,9 +315,9 @@ func setupBridge(n *NetConf) (*netlink.Bridge, *current.Interface, error) {
 		vlanFiltering = true
 	}
 	// create bridge if necessary
-	br, err := ensureBridge(n.Name+".br", n.MTU, n.PromiscMode, vlanFiltering)
+	br, err := ensureBridge(fmt.Sprintf(brNameTmp, n.BrName), n.MTU, n.PromiscMode, vlanFiltering)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create bridge %q: %v", n.Name+".br", err)
+		return nil, nil, fmt.Errorf("failed to create bridge %q: %v", fmt.Sprintf(brNameTmp, n.BrName), err)
 	}
 
 	return br, &current.Interface{
@@ -355,17 +358,17 @@ func bridgeAdd(args *skel.CmdArgs, n *NetConf) (*netlink.Bridge, *current.Result
 	}
 
 	if n.HairpinMode && n.PromiscMode {
-		return nil, nil, fmt.Errorf("cannot set hairpin mode and promiscous mode at the same time.")
+		return nil, nil, logging.Errorf("cannot set hairpin mode and promiscous mode at the same time.")
 	}
 
 	br, brInterface, err := setupBridge(n)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, logging.Errorf("setupBridge failed, %v", err)
 	}
 
 	netns, err := ns.GetNS(args.Netns)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
+		return nil, nil, logging.Errorf("failed to open netns %q: %v", args.Netns, err)
 	}
 	defer netns.Close()
 
@@ -499,7 +502,7 @@ func bridgeAdd(args *skel.CmdArgs, n *NetConf) (*netlink.Bridge, *current.Result
 
 	// Refetch the bridge since its MAC address may change when the first
 	// veth is added or after its IP address is set
-	br, err = bridgeByName(n.Name + ".br")
+	br, err = bridgeByName(fmt.Sprintf(brNameTmp, n.BrName))
 	if err != nil {
 		return nil, nil, err
 	}

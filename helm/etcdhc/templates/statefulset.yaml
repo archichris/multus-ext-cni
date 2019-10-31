@@ -17,8 +17,9 @@ spec:
   selector:
     matchLabels:
       app: {{ template "etcd.name" . }}
-      failure-domain.beta.kubernetes.io/region: cn-north-1
-      failure-domain.beta.kubernetes.io/zone: cn-north-1a
+{{ toYaml .Values.extLabel | indent 6 }}
+      # failure-domain.beta.kubernetes.io/region: cn-north-1
+      # failure-domain.beta.kubernetes.io/zone: cn-north-1a
   serviceName: {{ template "etcd.fullname" . }}
   replicas: {{ .Values.replicas }}
   template:
@@ -32,8 +33,7 @@ spec:
         release: {{ .Release.Name | quote }}
         chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
         app: {{ template "etcd.name" . }}
-        failure-domain.beta.kubernetes.io/region: cn-north-1
-        failure-domain.beta.kubernetes.io/zone: cn-north-1a
+{{ toYaml .Values.extLabel | indent 8 }}
     spec:
 {{- if .Values.affinity }}
       affinity:
@@ -244,8 +244,7 @@ spec:
   volumeClaimTemplates:
     - metadata:
         annotations:
-          volume.beta.kubernetes.io/storage-class: sata
-          volume.beta.kubernetes.io/storage-provisioner: flexvolume-huawei.com/fuxivol
+{{ toYaml .Values.persistentVolume.annotations | indent 10 }}
         name: datadir
         namespace: {{ .Values.namespace }}
       spec:

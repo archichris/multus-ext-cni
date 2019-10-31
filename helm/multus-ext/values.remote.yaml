@@ -11,7 +11,7 @@ crd:
 daemonset:
   name: multus-ext
   namespace: kube-system
-  image: "swr.cn-north-1.myhuaweicloud.com/unc/multus-ext:v0.6.0"
+  image: "swr.cn-north-1.myhuaweicloud.com/unc/multus-ext:v0.5.0.12"
   pullPolicy: "IfNotPresent"
   pullSecret: true
   registrySecret: registry-secret
@@ -19,15 +19,15 @@ daemonset:
 controller:
   name: multus-controller
   namespace: kube-system
-  image: "swr.cn-north-1.myhuaweicloud.com/unc/multus-controller:v0.6.0"
+  image: "swr.cn-north-1.myhuaweicloud.com/unc/multus-controller:v0.5.0.12"
   pullPolicy: "IfNotPresent"
-  pullSecret: false
+  pullSecret: true
   registrySecret: registry-secret
 
 etcdcni:
   # name: etcdcni
   endpoints:
-    - '"172.16.201.61:12379"'
+    - '"192.168.0.58:12379"'
   # clientPort: 2379
   namespace: default
   pullSecret: true

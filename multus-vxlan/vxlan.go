@@ -118,7 +118,7 @@ func setupVxlan(cfg *VxlanNetConf) (*netlink.Vxlan, error) {
 	}
 	linkCfg := &netlink.Vxlan{
 		LinkAttrs: netlink.LinkAttrs{
-			Name: fmt.Sprintf("multus.%v.%v", cfg.Master, cfg.VxlanId),
+			Name: fmt.Sprintf("mulvx.%v", cfg.VxlanId),
 		},
 		VxlanId:      cfg.VxlanId,
 		VtepDevIndex: iface.Index,

@@ -58,6 +58,9 @@ func loadNetConf(bytes []byte) (*NetConf, string, error) {
 		logging.SetLogLevel(n.LogLevel)
 	}
 	n.Vxlan.Master = n.Master
+	if n.BrName == "" {
+		n.BrName = n.Master
+	}
 	return n, n.CNIVersion, nil
 }
 

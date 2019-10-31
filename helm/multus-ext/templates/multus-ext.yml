@@ -154,7 +154,7 @@ spec:
         command: ["/entrypoint.sh"]
         args:
         - "--multus-conf-file=auto"
-        - "--multus-ticker-time=60"
+        - "--multus-ticker-time=600"
         resources:
           requests:
             cpu: "100m"
@@ -242,7 +242,7 @@ spec:
         imagePullPolicy: {{ .Values.controller.pullPolicy }}
         command: ["/start_controller.sh"]
         args:
-        - "--multus-ticker-time=60"
+        - "--multus-ticker-time=600"
         securityContext:
           privileged: true
         volumeMounts:

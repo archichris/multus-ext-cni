@@ -37,6 +37,7 @@ import (
 	"github.com/coreos/etcd/clientv3"
 	"github.com/intel/multus-cni/etcdv3"
 	"github.com/intel/multus-cni/logging"
+	"github.com/intel/multus-cni/multus-ipam/backend/etcdv3cli"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -257,8 +258,7 @@ func (km *KubeManager) CheckFixIP() error {
 	delList := []string{}
 	tmpMap := map[string]time.Time{}
 	for _, ev := range getResp.Kvs {
-		v := strings.Split(strings.Trim(string(ev.Value), " \r\n\t"), ":")
-		ns, name := v[0], v[1]
+		ns, name := etcdv3cli.IPAMParseFixInfo(string(ev.Value))
 		pod, err := km.client.CoreV1().Pods(ns).Get(name, metav1.GetOptions{})
 		if (err != nil) || (pod == nil) {
 			tmpMap[string(ev.Key)] = time.Now()

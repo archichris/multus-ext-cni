@@ -251,7 +251,7 @@ func allocateFixIP(netConf *allocator.Net) ([]*current.IPConfig, error) {
 		return nil, logging.Errorf("missing fix infor PodName(%v), K8sNs(%v)", ipamConf.PodName, ipamConf.K8sNs)
 	}
 
-	fixInfo := strings.Trim(ipamConf.K8sNs+":"+ipamConf.PodName, "\r\n\t ")
+	fixInfo := etcdv3cli.IPAMGenFixInfo(ipamConf.K8sNs, ipamConf.PodName)
 	n, err := etcdv3cli.IPAMApplyFixIP(netConf.Name, &ipamConf.Ranges[0][0], fixInfo)
 	if err != nil {
 		return nil, err

@@ -22,11 +22,12 @@ import (
 )
 
 var (
-	leaseDir    = "lease" //multus/netowrkname/key(ipsegment):value(node)
-	fixDir      = "fix"
-	staticDir   = "static"
-	keyTemplate = "%010d-%d"
-	maxApplyTry = 3
+	leaseDir      = "lease" //multus/netowrkname/key(ipsegment):value(node)
+	fixDir        = "fix"
+	staticDir     = "static"
+	rangeTemplate = "%010d-%d"
+	fixGap        = "/" // ns/name
+	maxApplyTry   = 3
 )
 
 func ipamLeaseToUint32Range(key string) (IPStart uint32, IPEnd uint32) {
@@ -45,7 +46,7 @@ func ipamLeaseToSimleRange(l string) *allocator.SimpleRange {
 func ipamSimpleRangeToLease(keyDir string, rs *allocator.SimpleRange) string {
 	ips := ipaddr.IP4ToUint32(rs.RangeStart)
 	n := rs.HostSize()
-	return filepath.Join(keyDir, fmt.Sprintf(keyTemplate, ips, n))
+	return filepath.Join(keyDir, fmt.Sprintf(rangeTemplate, ips, n))
 }
 
 // IpamApplyIPRange is used to apply IP range from ectd
@@ -319,4 +320,16 @@ func IPAMApplyFixIP(network string, r *allocator.Range, fixInfo string) (*net.IP
 		return nil, logging.Errorf("write key %v to %v failed", key, fixInfo)
 	}
 	return &net.IPNet{IP: ipaddr.Uint32ToIP4(fixIP), Mask: r.Subnet.Mask}, nil
+}
+
+// GetFreeIPRange is used to find a free IP range
+func IPAMGenFixInfo(ns, name string) string {
+	return strings.Trim(ns+fixGap+name, "\r\n\t ")
+}
+func IPAMParseFixInfo(info string) (string, string) {
+	v := strings.Split(strings.Trim(info, " \r\n\t"), fixGap)
+	if len(v) != 2 {
+		return "waitToDel", "waitToDel"
+	}
+	return v[0], v[1]
 }
