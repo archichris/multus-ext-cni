@@ -43,6 +43,7 @@ var (
 	networkAttachmentAnnot  = "k8s.v1.cni.cncf.io/" + annotation
 	defaultNetAnnot         = networkAttachmentAnnot + "-default"
 	networkAttachmentStatus = networkAttachmentAnnot + "-status"
+	extEnvAnnot             = "k8s.v1.cni.cncf.io/extEnv"
 )
 
 func Info() {
@@ -432,22 +433,22 @@ func GetK8sArgs(args *skel.CmdArgs) (*types.K8sArgs, error) {
 
 // TryLoadPodDelegates attempts to load Kubernetes-defined delegates and add them to the Multus config.
 // Returns the number of Kubernetes-defined delegates added or an error.
-func TryLoadPodDelegates(k8sArgs *types.K8sArgs, conf *types.NetConf, kubeClient KubeClient) (int, *ClientInfo, error) {
+func TryLoadPodDelegates(k8sArgs *types.K8sArgs, conf *types.NetConf, kubeClient KubeClient) (int, *ClientInfo, string, error) {
 	var err error
 	clientInfo := &ClientInfo{}
 
 	logging.Debugf("TryLoadPodDelegates: %v, %v, %v", k8sArgs, conf, kubeClient)
 	kubeClient, err = GetK8sClient(conf.Kubeconfig, kubeClient)
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, "", err
 	}
 
 	if kubeClient == nil {
 		if len(conf.Delegates) == 0 {
 			// No available kube client and no delegates, we can't do anything
-			return 0, nil, logging.Errorf("must have either Kubernetes config or delegates, refer Multus README.md for the usage guide")
+			return 0, nil, "", logging.Errorf("must have either Kubernetes config or delegates, refer Multus README.md for the usage guide")
 		}
-		return 0, nil, nil
+		return 0, nil, "", nil
 	}
 
 	setKubeClientInfo(clientInfo, kubeClient, k8sArgs)
@@ -455,12 +456,12 @@ func TryLoadPodDelegates(k8sArgs *types.K8sArgs, conf *types.NetConf, kubeClient
 	pod, err := kubeClient.GetPod(string(k8sArgs.K8S_POD_NAMESPACE), string(k8sArgs.K8S_POD_NAME))
 	if err != nil {
 		logging.Debugf("tryLoadK8sDelegates: Err in loading K8s cluster default network from pod annotation: %v, use cached delegates", err)
-		return 0, nil, nil
+		return 0, nil, "", nil
 	}
 
 	delegate, err := tryLoadK8sPodDefaultNetwork(kubeClient, pod, conf)
 	if err != nil {
-		return 0, nil, logging.Errorf("tryLoadK8sDelegates: Err in loading K8s cluster default network from pod annotation: %v", err)
+		return 0, nil, "", logging.Errorf("tryLoadK8sDelegates: Err in loading K8s cluster default network from pod annotation: %v", err)
 	}
 	if delegate != nil {
 		logging.Debugf("tryLoadK8sDelegates: Overwrite the cluster default network with %v from pod annotations", delegate)
@@ -469,22 +470,28 @@ func TryLoadPodDelegates(k8sArgs *types.K8sArgs, conf *types.NetConf, kubeClient
 	}
 
 	networks, err := GetPodNetwork(pod)
+	logging.Debugf("annotations:%v", pod.Annotations)
 	if networks != nil {
+		extEnv, ok := pod.Annotations[extEnvAnnot]
+		logging.Debugf("extEnv:%v,ok:%v", extEnv, ok)
+		if !ok {
+			extEnv = ""
+		}
 		delegates, err := GetNetworkDelegates(kubeClient, pod, networks, conf.ConfDir, conf.NamespaceIsolation)
-
 		if err != nil {
 			if _, ok := err.(*NoK8sNetworkError); ok {
-				return 0, clientInfo, nil
+				return 0, clientInfo, extEnv, nil
 			}
-			return 0, nil, logging.Errorf("Multus: Err in getting k8s network from pod: %v", err)
+			return 0, nil, extEnv, logging.Errorf("Multus: Err in getting k8s network from pod: %v", err)
 		}
 
 		if err = conf.AddDelegates(delegates); err != nil {
-			return 0, nil, err
+			return 0, nil, extEnv, err
 		}
-		return len(delegates), clientInfo, nil
+
+		return len(delegates), clientInfo, extEnv, nil
 	}
-	return 0, clientInfo, nil
+	return 0, clientInfo, "", nil
 }
 
 // GetK8sClient gets client info from kubeconfig

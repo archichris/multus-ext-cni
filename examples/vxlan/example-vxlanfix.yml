@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: vxlanfix
+  labels:
+    app: vxlanfix
+spec:
+  serviceName: "vxlanfix"
+  replicas: 2
+  selector:
+    matchLabels:
+      app: vxlanfix
+  template:
+    metadata:
+      labels:
+        app: vxlanfix
+      annotations:
+        k8s.v1.cni.cncf.io/mynetworks: vxlan1
+        k8s.v1.cni.cncf.io/extEnv: "Fix=vxlan1"
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - vxlanfix
+              topologyKey: "kubernetes.io/hostname"
+      containers:
+        - name: vxlanfix
+          image: busybox
+          command:
+            - sleep
+            - "1000000"
+          volumeMounts:
+            - mountPath: /var/multus
+              name: multus
+      volumes:
+        - hostPath:
+            path: /root/multus
+          name: multus

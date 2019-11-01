@@ -181,6 +181,10 @@ func LoadNetConf(bytes []byte) (*NetConf, error) {
 		logging.SetLogLevel(netconf.LogLevel)
 	}
 
+	//Debug only
+	logging.SetLogFile("/var/log/multus.log")
+	logging.SetLogLevel("debug")
+
 	// Parse previous result
 	if netconf.RawPrevResult != nil {
 		resultBytes, err := json.Marshal(netconf.RawPrevResult)

@@ -6,16 +6,17 @@ spec:
   config: '{
     "cniVersion": "0.3.0",
     "type": "multus-vxlan",
-    "master": "eth1",
+    "master": "eth0",
     "ipMasq": true,
-    "IsGw": false,
-    "IsDefaultGw": false,
+    "isGateway": true,
+    "isDefaultGateway": false,
+    "forceAddress": true,
     "hairpinMode": true,
     "vlan": 0,
     "vxlan":{
     "vxlanId": 201,
     "port": 8472,
-    "learning": false,
+    "learning": true,
     "gbp": false
     },
     "ipam": {
@@ -26,7 +27,6 @@ spec:
     "subnet": "192.168.109.0/24",
     "rangeStart": "192.168.109.0",
     "rangeEnd": "192.168.109.223",
-    "gateway": "192.168.109.1",
     "reserves":
     [
     "192.168.109.0",
@@ -35,6 +35,16 @@ spec:
     }
     ]
     ],
+    	"fixRange": {
+			"subnet": "192.168.109.0/24",
+			"rangeStart": "192.168.109.224",
+			"rangeEnd": "192.168.109.255",
+			"reserves": [
+    "192.168.109.0",
+    "192.168.109.255"
+			]
+		},
+    "allocGW": true,
     "routes": [
     { "dst": "0.0.0.0/0" }
     ]

@@ -345,10 +345,12 @@ func cmdAdd(args *skel.CmdArgs, exec invoke.Exec, kubeClient k8s.KubeClient) (cn
 		n.Delegates[0].MasterPlugin = true
 	}
 
-	_, kc, err := k8s.TryLoadPodDelegates(k8sArgs, n, kubeClient)
+	_, kc, extEnv, err := k8s.TryLoadPodDelegates(k8sArgs, n, kubeClient)
 	if err != nil {
 		return nil, logging.Errorf("Multus: Err in loading K8s Delegates k8s args: %v", err)
 	}
+
+	logging.Debugf("extEnv:%v", extEnv)
 
 	// cache the multus config
 	if err := saveDelegates(args.ContainerID, n.CNIDir, n.Delegates); err != nil {
@@ -358,6 +360,16 @@ func cmdAdd(args *skel.CmdArgs, exec invoke.Exec, kubeClient k8s.KubeClient) (cn
 	var result, tmpResult cnitypes.Result
 	var netStatus []*types.NetworkStatus
 	cniArgs := os.Getenv("CNI_ARGS")
+	if extEnv != "" {
+		cniArgs = fmt.Sprintf("%s;%s", cniArgs, extEnv)
+		err := os.Setenv("CNI_ARGS", cniArgs)
+		if err != nil {
+			return nil, logging.Errorf("set ext env failed, %v", cniArgs)
+		}
+	}
+
+	logging.Debugf("CNI_ARGS:%v", os.Getenv("CNI_ARGS"))
+
 	for idx, delegate := range n.Delegates {
 		ifName := getIfname(delegate, args.IfName, idx)
 		rt := types.CreateCNIRuntimeConf(args, k8sArgs, ifName, n.RuntimeConfig)
@@ -462,7 +474,7 @@ func cmdDel(args *skel.CmdArgs, exec invoke.Exec, kubeClient k8s.KubeClient) err
 			}
 
 			// Get pod annotation and so on
-			_, _, err := k8s.TryLoadPodDelegates(k8sArgs, in, kubeClient)
+			_, _, _, err := k8s.TryLoadPodDelegates(k8sArgs, in, kubeClient)
 			if err != nil {
 				if len(in.Delegates) == 0 {
 					// No delegate available so send error

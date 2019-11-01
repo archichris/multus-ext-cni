@@ -2,7 +2,6 @@ package etcdv3cli
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -52,8 +51,8 @@ var _ = Describe("Cli", func() {
 	"type": "multus-vxlan",
 	"master": "eth1",
 	"ipMasq": true,
-	"IsGw": false,
-	"IsDefaultGw": false,
+	"isGateway": true,
+	"isDefaultGateway": false,
 	"hairpinMode": true,
 	"vlan": 0,
 	"vxlan": {
@@ -70,7 +69,6 @@ var _ = Describe("Cli", func() {
 					"subnet": "192.168.56.0/24",
 					"rangeStart": "192.168.56.32",
 					"rangeEnd": "192.168.56.159",
-					"gateway": "192.168.56.1",
 					"reserves": [
 						"192.168.56.0",
 						"192.168.56.255"
@@ -78,7 +76,16 @@ var _ = Describe("Cli", func() {
 				}
 			]
 		],
-		"applyUnit": 4,
+		"fixRange": {
+			"subnet": "192.168.56.0/24",
+			"rangeStart": "192.168.56.128",
+			"rangeEnd": "192.168.56.255",
+			"reserves": [
+				"192.168.56.0",
+				"192.168.56.255"
+			]
+		},
+		"allocGW": true,
 		"routes": [
 			{
 				"dst": "0.0.0.0/0"
@@ -88,48 +95,6 @@ var _ = Describe("Cli", func() {
 }
 `)
 
-	var cniFixCfg = []byte(`
-{
-	"Name": "testfixnet",
-	"cniVersion": "0.3.0",
-	"type": "multus-vxlan",
-	"master": "eth1",
-	"ipMasq": true,
-	"IsGw": false,
-	"IsDefaultGw": false,
-	"hairpinMode": true,
-	"vlan": 0,
-	"vxlan": {
-		"vxlanId": 201,
-		"port": 8472,
-		"learning": false,
-		"gbp": false
-	},
-	"ipam": {
-		"type": "multus-ipam",
-		"ranges": [
-			[
-				{
-					"subnet": "192.168.56.0/24",
-					"rangeStart": "192.168.56.128",
-					"rangeEnd": "192.168.56.255",
-					"gateway": "192.168.56.1",
-					"reserves": [
-						"192.168.56.0",
-						"192.168.56.255"
-					]
-				}
-			]
-		],
-		"fix": true,
-		"routes": [
-			{
-				"dst": "0.0.0.0/0"
-			}
-		]
-	}
-}
-`)
 	var (
 		subnet, _ = types.ParseCIDR("192.168.56.0/24")
 		rangeTest = allocator.Range{Subnet: *(*types.IPNet)(subnet)}
@@ -160,7 +125,7 @@ var _ = Describe("Cli", func() {
 		It("convert lease to uint32 ip range", func() {
 			ip := net.ParseIP("192.168.0.128")
 			ipU32 := ipaddr.IP4ToUint32(ip)
-			key := filepath.Join("multus", "testtype", "testnet", fmt.Sprintf(keyTemplate, ipU32, 4))
+			key := filepath.Join("multus", "testtype", "testnet", fmt.Sprintf(rangeTemplate, ipU32, 4))
 			ips, ipe := ipamLeaseToUint32Range(key)
 			Expect(ips).To(Equal(ipU32))
 			Expect(ipe).To(Equal(ipU32 + 16 - 1))
@@ -170,7 +135,7 @@ var _ = Describe("Cli", func() {
 			ips := net.ParseIP("192.168.0.128")
 			expectRS := allocator.SimpleRange{net.ParseIP("192.168.0.128").To4(), net.ParseIP("192.168.0.143").To4()}
 			ipsU32 := ipaddr.IP4ToUint32(ips)
-			key := filepath.Join("multus", "testtype", "testnet", fmt.Sprintf(keyTemplate, ipsU32, 4))
+			key := filepath.Join("multus", "testtype", "testnet", fmt.Sprintf(rangeTemplate, ipsU32, 4))
 			rs := ipamLeaseToSimleRange(key)
 			Expect(expectRS.Match(rs)).To(Equal(true))
 		})
@@ -179,14 +144,20 @@ var _ = Describe("Cli", func() {
 			ipU32 := ipaddr.IP4ToUint32(rs.RangeStart)
 			keyDir := filepath.Join("multus", "testtype", "testnet")
 			lease := ipamSimpleRangeToLease(keyDir, &rs)
-			Expect(lease).To(Equal("multus/testtype/testnet/" + fmt.Sprintf(keyTemplate, ipU32, 4)))
+			Expect(lease).To(Equal("multus/testtype/testnet/" + fmt.Sprintf(rangeTemplate, ipU32, 4)))
 		})
 	})
 	Describe("applying ip from etcd", func() {
+		var netConf *allocator.Net
 		BeforeEach(func() {
 			em, _ := etcdv3.New()
 			defer em.Close()
 			em.Cli.Delete(context.TODO(), em.RootKeyDir, clientv3.WithPrefix())
+			var err error
+			netConf, _, err = allocator.LoadIPAMConfig(cniCfg, "")
+			if err != nil {
+				logging.Debugf("LoadIPAMConfig return %v", err)
+			}
 		})
 		AfterEach(func() {
 			em, _ := etcdv3.New()
@@ -210,13 +181,16 @@ var _ = Describe("Cli", func() {
 			em, err := etcdv3.New()
 			Expect(err).To(BeNil())
 			defer em.Close()
-			netConf := allocator.Net{}
-			err = json.Unmarshal(cniCfg, &netConf)
-			Expect(err).To(BeNil())
+			// netConf := allocator.Net{}
+			// err = json.Unmarshal(cniCfg, &netConf)
+			// Expect(err).To(BeNil())
+			Expect(netConf.IPAM.IsFixIP).To(BeFalse())
 
 			sr, err := IPAMApplyIPRange(netConf.Name, &netConf.IPAM.Ranges[0][0], netConf.IPAM.ApplyUnit)
+			logging.Debugf("name:%v, range:%v, unit:%v, sr:%v", netConf.Name, &netConf.IPAM.Ranges[0][0], netConf.IPAM.ApplyUnit, sr)
 			Expect(err).To(BeNil())
 			Expect(ipaddr.IP4ToUint32(sr.RangeEnd) - ipaddr.IP4ToUint32(sr.RangeStart)).To(Equal(num - 1))
+
 			eips, eipe := ipaddr.IP4ToUint32(sr.RangeStart), ipaddr.IP4ToUint32(sr.RangeEnd)
 
 			keyDir := filepath.Join(em.RootKeyDir, leaseDir, netConf.Name)
@@ -233,8 +207,8 @@ var _ = Describe("Cli", func() {
 			em, err := etcdv3.New()
 			Expect(err).To(BeNil())
 			defer em.Close()
-			netConf := allocator.Net{}
-			err = json.Unmarshal(cniCfg, &netConf)
+			// netConf := allocator.Net{}
+			// err = json.Unmarshal(cniCfg, &netConf)
 			Expect(err).To(BeNil())
 			n := 4
 			for i := 0; i < n; i++ {
@@ -269,8 +243,8 @@ var _ = Describe("Cli", func() {
 			em, err := etcdv3.New()
 			Expect(err).To(BeNil())
 			defer em.Close()
-			netConf := allocator.Net{}
-			err = json.Unmarshal(cniCfg, &netConf)
+			// netConf := allocator.Net{}
+			// err = json.Unmarshal(cniCfg, &netConf)
 			Expect(err).To(BeNil())
 			n := 3
 			var sri *allocator.SimpleRange
@@ -291,16 +265,12 @@ var _ = Describe("Cli", func() {
 		})
 	})
 	Describe("verification between etcd and local", func() {
-		var netConf = allocator.Net{}
+		var netConf *allocator.Net
 		BeforeEach(func() {
-			// ioutil.WriteFile("/tmp/etcd.conf", etcdCfg, 0666)
-			// os.Setenv("ETCD_CFG_DIR", "/tmp")
-			// os.Setenv("ETCD_ROOT_DIR", "test")
-			// os.Setenv("HOSTNAME", "hostname")
 			em, _ := etcdv3.New()
 			defer em.Close()
 			em.Cli.Delete(context.TODO(), em.RootKeyDir, clientv3.WithPrefix())
-			json.Unmarshal(cniCfg, &netConf)
+			netConf, _, _ = allocator.LoadIPAMConfig(cniCfg, "")
 			s, _ := disk.New(netConf.Name, "")
 			caches, _ := s.LoadCache()
 			for _, csr := range caches {
@@ -311,7 +281,6 @@ var _ = Describe("Cli", func() {
 			em, _ := etcdv3.New()
 			defer em.Close()
 			em.Cli.Delete(context.TODO(), em.RootKeyDir, clientv3.WithPrefix())
-			json.Unmarshal(cniCfg, &netConf)
 			s, _ := disk.New(netConf.Name, "")
 			caches, _ := s.LoadCache()
 			for _, csr := range caches {
@@ -352,8 +321,8 @@ var _ = Describe("Cli", func() {
 		It("local have more record than etcd, after check, etcd should equal to local", func() {
 			em, _ := etcdv3.New()
 			defer em.Close()
-			netConf := allocator.Net{}
-			json.Unmarshal(cniCfg, &netConf)
+			// netConf := allocator.Net{}
+			// json.Unmarshal(cniCfg, &netConf)
 			s, _ := disk.New(netConf.Name, "")
 			n := 5
 			var srs []*allocator.SimpleRange
@@ -391,8 +360,8 @@ var _ = Describe("Cli", func() {
 		It("etcd record is empty but local have data", func() {
 			em, _ := etcdv3.New()
 			defer em.Close()
-			netConf := allocator.Net{}
-			json.Unmarshal(cniCfg, &netConf)
+			// netConf := allocator.Net{}
+			// json.Unmarshal(cniCfg, &netConf)
 			testRS1 := allocator.SimpleRange{net.IPv4(192, 168, 100, 128), net.IPv4(192, 168, 100, 143)}
 			testRS2 := allocator.SimpleRange{net.IPv4(192, 168, 100, 160), net.IPv4(192, 168, 100, 175)}
 			tests := []*allocator.SimpleRange{&testRS1, &testRS2}
@@ -425,8 +394,8 @@ var _ = Describe("Cli", func() {
 		It("etcd data conflict with local date, local data should be clean", func() {
 			em, _ := etcdv3.New()
 			defer em.Close()
-			netConf := allocator.Net{}
-			json.Unmarshal(cniCfg, &netConf)
+			// netConf := allocator.Net{}
+			// json.Unmarshal(cniCfg, &netConf)
 			s, _ := disk.New(netConf.Name, "")
 			testRS1 := allocator.SimpleRange{net.IPv4(192, 168, 100, 128), net.IPv4(192, 168, 100, 143)}
 			testRS2 := allocator.SimpleRange{net.IPv4(192, 168, 100, 160), net.IPv4(192, 168, 100, 175)}
@@ -466,12 +435,16 @@ var _ = Describe("Cli", func() {
 	})
 
 	Describe("testing apply fix ip", func() {
-		var netConf = allocator.Net{}
+		var netConf *allocator.Net
+		var namespace = "testns"
+		var podName = "testpod"
+		var fixInfoTmp = namespace + fixGap + podName + "%d"
 		BeforeEach(func() {
 			em, _ := etcdv3.New()
 			defer em.Close()
 			em.Cli.Delete(context.TODO(), em.RootKeyDir, clientv3.WithPrefix())
-			json.Unmarshal(cniFixCfg, &netConf)
+			netConf, _, _ = allocator.LoadIPAMConfig(cniCfg, "")
+			netConf.IPAM.IsFixIP = true
 		})
 		AfterEach(func() {
 			em, _ := etcdv3.New()
@@ -482,12 +455,14 @@ var _ = Describe("Cli", func() {
 		It("rand apply fix ips and check the ip allocation is fixed", func() {
 			em, _ := etcdv3.New()
 			defer em.Close()
-			netConf := allocator.Net{}
-			json.Unmarshal(cniFixCfg, &netConf)
+			// netConf := allocator.Net{}
+			// netConf, v, err := allocator.LoadIPAMConfig(cniFixCfg, "")
+			// Expect(err).To(BeNil())
+			// Expect(netConf.Name).To(Equal("testnet"))
 			n := 4
 			lease := []*net.IPNet{}
 			for i := 0; i < n; i++ {
-				network, err := IPAMApplyFixIP(netConf.Name, &netConf.IPAM.Ranges[0][0], fmt.Sprintf("tsetpod:%d", i))
+				network, err := IPAMApplyFixIP(netConf.Name, netConf.IPAM.FixRange, fmt.Sprintf(fixInfoTmp, i))
 				Expect(err).To(BeNil())
 				lease = append(lease, network)
 			}
@@ -499,7 +474,7 @@ var _ = Describe("Cli", func() {
 					}
 					Expect(lease[i].String()).NotTo(Equal(lease[j].String()))
 				}
-				network, err := IPAMApplyFixIP(netConf.Name, &netConf.IPAM.Ranges[0][0], fmt.Sprintf("tsetpod:%d", i))
+				network, err := IPAMApplyFixIP(netConf.Name, &netConf.IPAM.Ranges[0][0], fmt.Sprintf(fixInfoTmp, i))
 				Expect(err).To(BeNil())
 				Expect(lease[i].String()).To(Equal(network.String()))
 			}

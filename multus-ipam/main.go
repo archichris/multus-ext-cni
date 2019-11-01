@@ -18,6 +18,7 @@ import (
 	// "encoding/json"
 	// "flag"
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/containernetworking/cni/pkg/skel"
@@ -31,8 +32,6 @@ import (
 	"github.com/intel/multus-cni/multus-ipam/backend/disk"
 	"github.com/intel/multus-cni/multus-ipam/backend/etcdv3cli"
 )
-
-const defaultApplyUnit = uint32(4)
 
 func init() {
 	//for debug
@@ -89,10 +88,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 		result.DNS = *dns
 	}
 
-	if ipamConf.ApplyUnit == 0 {
-		ipamConf.ApplyUnit = defaultApplyUnit
-	}
-	logging.Debugf("ipamConf.ApplyUnit=%v", ipamConf.ApplyUnit)
+	// logging.Debugf("ipamConf.ApplyUnit=%v", ipamConf.ApplyUnit)
 
 	store, err := disk.New(ipamConf.Name, ipamConf.DataDir)
 	if err != nil {
@@ -100,7 +96,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 	}
 	defer store.Close()
 
-	if ipamConf.Fix == false {
+	if ipamConf.IsFixIP == false {
 		result.IPs, err = allocateIP(netConf, store, args.ContainerID, args.IfName)
 		if err != nil {
 			return logging.Errorf("allocateIP failed, %v", err)
@@ -114,6 +110,16 @@ func cmdAdd(args *skel.CmdArgs) error {
 
 	result.Routes = ipamConf.Routes
 
+	if ipamConf.AllocGW == true {
+		gw := store.LoadGW("gateway", "gateway")
+		if ip.Cmp(gw, net.IPv4zero) == 0 {
+			r, err := allocateIP(netConf, store, "gateway", "gateway")
+			if err == nil {
+				gw = r[0].Address.IP
+			}
+		}
+		result.IPs[0].Gateway = gw
+	}
 	return types.PrintResult(result, confVersion)
 }
 
@@ -125,7 +131,7 @@ func cmdDel(args *skel.CmdArgs) error {
 
 	ipamConf := netConf.IPAM
 
-	if ipamConf.Fix == false {
+	if ipamConf.IsFixIP == false {
 		store, err := disk.New(ipamConf.Name, ipamConf.DataDir)
 		if err != nil {
 			return err
@@ -252,7 +258,7 @@ func allocateFixIP(netConf *allocator.Net) ([]*current.IPConfig, error) {
 	}
 
 	fixInfo := etcdv3cli.IPAMGenFixInfo(ipamConf.K8sNs, ipamConf.PodName)
-	n, err := etcdv3cli.IPAMApplyFixIP(netConf.Name, &ipamConf.Ranges[0][0], fixInfo)
+	n, err := etcdv3cli.IPAMApplyFixIP(netConf.Name, ipamConf.FixRange, fixInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -261,6 +267,6 @@ func allocateFixIP(netConf *allocator.Net) ([]*current.IPConfig, error) {
 		&current.IPConfig{
 			Version: "4",
 			Address: *n,
-			Gateway: ipamConf.Ranges[0][0].Gateway},
+			Gateway: ip.NextIP(n.IP.Mask(n.Mask))},
 	}, nil
 }

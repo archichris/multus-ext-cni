@@ -14,6 +14,7 @@ import (
 
 	"github.com/coreos/etcd/clientv3"
 
+	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/intel/multus-cni/etcdv3"
 	"github.com/intel/multus-cni/ipaddr"
 	"github.com/intel/multus-cni/logging"
@@ -104,9 +105,12 @@ func ipamGetFreeIPRange(cli *clientv3.Client, keyDir string, r *allocator.Range,
 	for _, ev := range resp.Kvs {
 		logging.Debugf("Key:%v, Value:%v ", string(ev.Key), string(ev.Value))
 		ips, ipe := ipamLeaseToUint32Range(string(ev.Key))
-		if ips == 0 {
+		if ips == 0 || ips > ripe {
 			logging.Debugf("Invalid Key %v", string(ev.Key))
 			continue
+		}
+		if ipe > ripe {
+			ipe = ripe
 		}
 		if ips-last < num {
 			last = ipe + 1
@@ -256,7 +260,7 @@ func IPAMCheck() error {
 // GetFreeIPRange is used to find a free IP range
 func IPAMApplyFixIP(network string, r *allocator.Range, fixInfo string) (*net.IPNet, error) {
 	// netConf *allocator.Net
-	logging.Debugf("Going to do apply fix IP from %v", r)
+	logging.Debugf("Going to do apply fix IP from %v for %v", r, network)
 	em, err := etcdv3.New()
 	if err != nil {
 		return nil, err
@@ -284,20 +288,29 @@ func IPAMApplyFixIP(network string, r *allocator.Range, fixInfo string) (*net.IP
 	}
 	last := rips
 	for _, ev := range resp.Kvs {
-		// logging.Debugf("Key:%v, Value:%v ", string(ev.Key), string(ev.Value))
+		logging.Debugf("Key:%v, Value:%v, fixInfo:%v", string(ev.Key), string(ev.Value), fixInfo)
+		fix := ipaddr.StrToUint32(filepath.Base(string(ev.Key)))
+		addr := ipaddr.Uint32ToIP4(fix)
+		v := string(ev.Key)
 
-		ip := ipaddr.StrToUint32(filepath.Base(string(ev.Key)))
-		if string(ev.Value) == fixInfo {
-			fixIP = ip
+		if (ip.Cmp(r.RangeStart, addr) > 0) || (ip.Cmp(r.RangeEnd, addr) < 0) {
+			if v == fixInfo {
+				em.Cli.Delete(context.TODO(), string(ev.Key))
+			}
+			continue
+		}
+		if v == fixInfo {
+			fixIP = fix
+			break
 		}
 
-		if ip-last > 0 {
-			for i := last; i < ip; i++ {
+		if fix-last > 0 {
+			for i := last; i < fix; i++ {
 				freeIPs = append(freeIPs, i)
 			}
 		}
 
-		last = ip + 1
+		last = fix + 1
 	}
 
 	if fixIP == 0 {

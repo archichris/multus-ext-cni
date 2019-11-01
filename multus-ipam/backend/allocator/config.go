@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/containernetworking/cni/pkg/types"
 	types020 "github.com/containernetworking/cni/pkg/types/020"
@@ -26,6 +27,11 @@ import (
 
 // The top-level network config - IPAM plugins are passed the full configuration
 // of the calling plugin, not just the IPAM section.
+
+var (
+	fixSuffix        = "fix"
+	defaultApplyUnit = uint32(4)
+)
 
 type Net struct {
 	Name       string      `json:"name"`
@@ -62,11 +68,14 @@ type IPAMConfig struct {
 	DataDir    string         `json:"dataDir"`
 	ResolvConf string         `json:"resolvConf"`
 	Ranges     []RangeSet     `json:"ranges"`
+	FixRange   *Range         `json:"fixRange"`
 	IPArgs     []net.IP       `json:"-"` // Requested IPs from CNI_ARGS and args
 	ApplyUnit  uint32         `json:"applyUnit,omitempty"`
-	Fix        bool           `json:"fix,omitempty"`
+	AllocGW    bool           `json:"allocGW,omitempty"`
 	PodName    string
 	K8sNs      string
+	IsFixIP    bool
+	// FixNets    []string
 }
 
 type IPAMEnvArgs struct {
@@ -74,6 +83,7 @@ type IPAMEnvArgs struct {
 	IP                net.IP                     `json:"ip,omitempty"`
 	K8S_POD_NAMESPACE types.UnmarshallableString `json:"k8sPodNamespace,omitempty"`
 	K8S_POD_NAME      types.UnmarshallableString `json:"k8sPodName,omitempty"`
+	Fix               types.UnmarshallableString `json:"extEnv,omitempty"`
 }
 
 type IPAMArgs struct {
@@ -131,6 +141,13 @@ func LoadIPAMConfig(bytes []byte, envArgs string) (*Net, string, error) {
 		}
 		if e.K8S_POD_NAMESPACE != "" {
 			n.IPAM.K8sNs = string(e.K8S_POD_NAMESPACE)
+		}
+		if e.Fix != "" {
+			for _, t := range strings.Split(string(e.Fix), ",") {
+				if strings.ToLower(t) == strings.ToLower(n.Name) {
+					n.IPAM.IsFixIP = true
+				}
+			}
 		}
 	}
 
@@ -194,10 +211,17 @@ func LoadIPAMConfig(bytes []byte, envArgs string) (*Net, string, error) {
 		}
 	}
 
-	// Copy net name into IPAM so not to drag Net struct around
 	n.IPAM.Name = n.Name
-	// n.IPAM.NetType = n.Type
-	// n.IPAM.Master = n.Master
+
+	if n.IPAM.FixRange != nil {
+		if err := n.IPAM.FixRange.Canonicalize(); err != nil {
+			return nil, "", fmt.Errorf("invalid fixRange set %v, %s", n.IPAM.FixRange, err)
+		}
+	}
+
+	if n.IPAM.ApplyUnit == 0 {
+		n.IPAM.ApplyUnit = defaultApplyUnit
+	}
 
 	return &n, n.CNIVersion, nil
 }

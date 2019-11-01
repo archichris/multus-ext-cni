@@ -16,6 +16,7 @@ package main
 
 import (
 	"encoding/json"
+	"os"
 	"runtime"
 
 	"github.com/containernetworking/cni/pkg/skel"
@@ -65,6 +66,8 @@ func loadNetConf(bytes []byte) (*NetConf, string, error) {
 }
 
 func cmdAdd(args *skel.CmdArgs) error {
+
+	logging.Debugf(os.Getenv("CNI_ARGS"))
 	n, cniVersion, err := loadNetConf(args.StdinData)
 	if err != nil {
 		return err
@@ -93,18 +96,18 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return logging.Errorf("Enable vxlan failed")
 	}
 
-	if n.IPAM.Type != "" {
-		for _, ip := range result.IPs {
-			i := ip.Address
-			i.IP = i.IP.Mask(i.Mask)
-			err := netlink.RouteAdd(&netlink.Route{LinkIndex: vxlan.Attrs().Index, Scope: netlink.SCOPE_UNIVERSE, Dst: &i})
-			if err != nil {
-				logging.Errorf("RouteAdd %v Dst:%v, failed, %v", vxlan.Attrs().Index, i, err)
-			} else {
-				logging.Verbosef("RouteAdd %v Dst:%v successed", vxlan.Attrs().Index, i)
-			}
-		}
-	}
+	// if n.IPAM.Type != "" {
+	// 	for _, ip := range result.IPs {
+	// 		i := ip.Address
+	// 		i.IP = i.IP.Mask(i.Mask)
+	// 		err := netlink.RouteAdd(&netlink.Route{LinkIndex: vxlan.Attrs().Index, Scope: netlink.SCOPE_UNIVERSE, Dst: &i})
+	// 		if err != nil {
+	// 			logging.Errorf("RouteAdd %v Dst:%v, failed, %v", vxlan.Attrs().Index, i, err)
+	// 		} else {
+	// 			logging.Verbosef("RouteAdd %v Dst:%v successed", vxlan.Attrs().Index, i)
+	// 		}
+	// 	}
+	// }
 
 	etcdv3cli.RecVxlan(n.Name, vxlan)
 

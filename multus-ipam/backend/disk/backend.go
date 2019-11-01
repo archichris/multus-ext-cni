@@ -331,3 +331,11 @@ func GetAllNet(d string) []string {
 	}
 	return networks
 }
+
+// LoadRangeSetFromCache is used to load IP range set "startIP:endIP" from cache file
+func (s *Store) LoadGW(id string, ifname string) net.IP {
+	if ips := s.GetByID(id, ifname); ips != nil {
+		return ips[0]
+	}
+	return net.IPv4zero
+}

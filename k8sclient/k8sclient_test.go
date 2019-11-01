@@ -525,7 +525,7 @@ var _ = Describe("k8sclient operations", func() {
 		Expect(netConf.Delegates[0].Conf.Name).To(Equal("net2"))
 		Expect(netConf.Delegates[0].Conf.Type).To(Equal("mynet2"))
 
-		numK8sDelegates, _, err := TryLoadPodDelegates(k8sArgs, netConf, kubeClient)
+		numK8sDelegates, _, _, err := TryLoadPodDelegates(k8sArgs, netConf, kubeClient)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(numK8sDelegates).To(Equal(0))
 		Expect(netConf.Delegates[0].Conf.Name).To(Equal("net1"))
@@ -562,7 +562,7 @@ var _ = Describe("k8sclient operations", func() {
 		Expect(err).To(HaveOccurred())
 
 		netConf.ConfDir = "badfilepath"
-		_, _, err = TryLoadPodDelegates(k8sArgs, netConf, kubeClient)
+		_, _, _, err = TryLoadPodDelegates(k8sArgs, netConf, kubeClient)
 		Expect(err).To(HaveOccurred())
 	})
 
@@ -595,7 +595,7 @@ var _ = Describe("k8sclient operations", func() {
 		k8sArgs, err := GetK8sArgs(args)
 		Expect(err).NotTo(HaveOccurred())
 
-		numK8sDelegates, _, err := TryLoadPodDelegates(k8sArgs, netConf, kubeClient)
+		numK8sDelegates, _, _, err := TryLoadPodDelegates(k8sArgs, netConf, kubeClient)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(numK8sDelegates).To(Equal(0))
 		Expect(netConf.Delegates[0].Conf.Name).To(Equal("net1"))
@@ -630,7 +630,7 @@ var _ = Describe("k8sclient operations", func() {
 		k8sArgs, err := GetK8sArgs(args)
 		Expect(err).NotTo(HaveOccurred())
 
-		_, _, err = TryLoadPodDelegates(k8sArgs, netConf, nil)
+		_, _, _, err = TryLoadPodDelegates(k8sArgs, netConf, nil)
 		Expect(err).To(HaveOccurred())
 	})
 
@@ -662,12 +662,12 @@ var _ = Describe("k8sclient operations", func() {
 		k8sArgs, err := GetK8sArgs(args)
 		Expect(err).NotTo(HaveOccurred())
 
-		_, _, err = TryLoadPodDelegates(k8sArgs, netConf, nil)
+		_, _, _, err = TryLoadPodDelegates(k8sArgs, netConf, nil)
 		Expect(err).NotTo(HaveOccurred())
 
 		// additionally, we expect the test to fail with no delegates, as at least one is always required.
 		netConf.Delegates = nil
-		_, _, err = TryLoadPodDelegates(k8sArgs, netConf, nil)
+		_, _, _, err = TryLoadPodDelegates(k8sArgs, netConf, nil)
 		Expect(err).To(HaveOccurred())
 	})
 
@@ -721,7 +721,7 @@ users:
 		k8sArgs, err := GetK8sArgs(args)
 		Expect(err).NotTo(HaveOccurred())
 
-		_, _, err = TryLoadPodDelegates(k8sArgs, netConf, nil)
+		_, _, _, err = TryLoadPodDelegates(k8sArgs, netConf, nil)
 		Expect(err).NotTo(HaveOccurred())
 	})
 

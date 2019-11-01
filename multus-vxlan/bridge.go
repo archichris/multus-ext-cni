@@ -15,7 +15,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -82,7 +81,7 @@ func calcGateways(result *current.Result, n *NetConf) (*gwInfo, *gwInfo, error) 
 			gws.family = netlink.FAMILY_V6
 			defaultNet.IP = net.IPv6zero
 		default:
-			return nil, nil, fmt.Errorf("Unknown IP object: %v", ipc)
+			return nil, nil, logging.Errorf("Unknown IP object: %v", ipc)
 		}
 		defaultNet.Mask = net.IPMask(defaultNet.IP)
 
@@ -128,7 +127,7 @@ func calcGateways(result *current.Result, n *NetConf) (*gwInfo, *gwInfo, error) 
 func ensureAddr(br netlink.Link, family int, ipn *net.IPNet, forceAddress bool) error {
 	addrs, err := netlink.AddrList(br, family)
 	if err != nil && err != syscall.ENOENT {
-		return fmt.Errorf("could not get list of IP addresses: %v", err)
+		return logging.Errorf("could not get list of IP addresses: %v", err)
 	}
 
 	ipnStr := ipn.String()
@@ -149,20 +148,20 @@ func ensureAddr(br netlink.Link, family int, ipn *net.IPNet, forceAddress bool) 
 					return err
 				}
 			} else {
-				return fmt.Errorf("%q already has an IP address different from %v", br.Attrs().Name, ipnStr)
+				return logging.Errorf("%q already has an IP address different from %v", br.Attrs().Name, ipnStr)
 			}
 		}
 	}
 
 	addr := &netlink.Addr{IPNet: ipn, Label: ""}
 	if err := netlink.AddrAdd(br, addr); err != nil && err != syscall.EEXIST {
-		return fmt.Errorf("could not add IP address to %q: %v", br.Attrs().Name, err)
+		return logging.Errorf("could not add IP address to %q: %v", br.Attrs().Name, err)
 	}
 
 	// Set the bridge's MAC to itself. Otherwise, the bridge will take the
 	// lowest-numbered mac on the bridge, and will change as ifs churn
 	if err := netlink.LinkSetHardwareAddr(br, br.Attrs().HardwareAddr); err != nil {
-		return fmt.Errorf("could not set bridge's mac: %v", err)
+		return logging.Errorf("could not set bridge's mac: %v", err)
 	}
 
 	return nil
@@ -381,6 +380,7 @@ func bridgeAdd(args *skel.CmdArgs, n *NetConf) (*netlink.Bridge, *current.Result
 	result := &current.Result{Interfaces: []*current.Interface{brInterface, hostInterface, containerInterface}}
 
 	if isLayer3 {
+		logging.Debugf("Entry layer3 process")
 		// run the IPAM plugin and get back the config to apply
 		r, err := ipam.ExecAdd(n.IPAM.Type, args.StdinData)
 		if err != nil {
@@ -403,12 +403,15 @@ func bridgeAdd(args *skel.CmdArgs, n *NetConf) (*netlink.Bridge, *current.Result
 		result.IPs = ipamResult.IPs
 		result.Routes = ipamResult.Routes
 
+		logging.Debugf("ips from ipam are %v", result.IPs)
+
 		if len(result.IPs) == 0 {
-			return nil, nil, errors.New("IPAM plugin returned missing IP config")
+			return nil, nil, logging.Errorf("IPAM plugin returned missing IP config")
 		}
 
 		// Gather gateway information for each IP family
 		gwsV4, gwsV6, err := calcGateways(result, n)
+		logging.Debugf("gwsV4:%v, gwsV6:%v", gwsV4, gwsV6)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -448,6 +451,7 @@ func bridgeAdd(args *skel.CmdArgs, n *NetConf) (*netlink.Bridge, *current.Result
 			return nil, nil, err
 		}
 
+		logging.Debugf("Gw is %v", n.IsGW)
 		if n.IsGW {
 			var firstV4Addr net.IP
 			var vlanInterface *current.Interface
@@ -460,7 +464,7 @@ func bridgeAdd(args *skel.CmdArgs, n *NetConf) (*netlink.Bridge, *current.Result
 					if n.Vlan != 0 {
 						vlanIface, err := ensureVlanInterface(br, n.Vlan)
 						if err != nil {
-							return nil, nil, fmt.Errorf("failed to create vlan interface: %v", err)
+							return nil, nil, logging.Errorf("failed to create vlan interface: %v", err)
 						}
 
 						if vlanInterface == nil {
@@ -471,19 +475,20 @@ func bridgeAdd(args *skel.CmdArgs, n *NetConf) (*netlink.Bridge, *current.Result
 
 						err = ensureAddr(vlanIface, gws.family, &gw, n.ForceAddress)
 						if err != nil {
-							return nil, nil, fmt.Errorf("failed to set vlan interface for bridge with addr: %v", err)
+							return nil, nil, logging.Errorf("failed to set vlan interface for bridge with addr: %v", err)
 						}
 					} else {
+						logging.Debugf("ensureAddr %v, %v, %v, %v", br, gws.family, gw, n.ForceAddress)
 						err = ensureAddr(br, gws.family, &gw, n.ForceAddress)
 						if err != nil {
-							return nil, nil, fmt.Errorf("failed to set bridge addr: %v", err)
+							return nil, nil, logging.Errorf("failed to set bridge addr: %v", err)
 						}
 					}
 				}
 
 				if gws.gws != nil {
 					if err = enableIPForward(gws.family); err != nil {
-						return nil, nil, fmt.Errorf("failed to enable forwarding: %v", err)
+						return nil, nil, logging.Errorf("failed to enable forwarding: %v", err)
 					}
 				}
 			}
