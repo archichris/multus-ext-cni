@@ -112,6 +112,12 @@ func cmdAdd(args *skel.CmdArgs) error {
 
 	if ipamConf.AllocGW == true {
 		gw := store.LoadGW("gateway", "gateway")
+		if ip.Cmp(gw, net.IPv4zero) != 0 {
+			if !result.IPs[0].Address.Contains(gw) {
+				store.Release(gw)
+				gw = net.IPv4zero
+			}
+		}
 		if ip.Cmp(gw, net.IPv4zero) == 0 {
 			r, err := allocateIP(netConf, store, "gateway", "gateway")
 			if err == nil {
@@ -120,6 +126,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 		}
 		result.IPs[0].Gateway = gw
 	}
+	logging.Debugf("IPs: %v", result.IPs)
 	return types.PrintResult(result, confVersion)
 }
 

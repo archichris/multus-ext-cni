@@ -161,7 +161,7 @@ func ensureAddr(br netlink.Link, family int, ipn *net.IPNet, forceAddress bool) 
 	// Set the bridge's MAC to itself. Otherwise, the bridge will take the
 	// lowest-numbered mac on the bridge, and will change as ifs churn
 	if err := netlink.LinkSetHardwareAddr(br, br.Attrs().HardwareAddr); err != nil {
-		return logging.Errorf("could not set bridge's mac: %v", err)
+		logging.Errorf("could not set bridge's mac: %v", err)
 	}
 
 	return nil

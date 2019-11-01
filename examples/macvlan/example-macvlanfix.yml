@@ -1,23 +1,25 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
-  name: example-macvlan
+  name: example-macvlanfix
   labels:
-    app: example-macvlan
+    app: example-macvlanfix
 spec:
+  serviceName: "macfix"
   replicas: 2
   selector:
     matchLabels:
-      app: example-macvlan
+      app: example-macvlanfix
   template:
     metadata:
       labels:
-        app: example-macvlan
+        app: example-macvlanfix
       annotations:
         k8s.v1.cni.cncf.io/mynetworks: macvlan3
+        k8s.v1.cni.cncf.io/extEnv: "Fix=macvlan3"
     spec:
       containers:
-        - name: example-macvlan
+        - name: example-macvlanfix
           image: busybox
           command:
             - sleep

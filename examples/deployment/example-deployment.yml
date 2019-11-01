@@ -1,20 +1,20 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: example-vxlan
+  name: example
   labels:
-    app: example-vxlan
+    app: example
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: example-vxlan
+      app: example
   template:
     metadata:
       labels:
-        app: example-vxlan
+        app: example
       annotations:
-        k8s.v1.cni.cncf.io/mynetworks: vxlan1
+        k8s.v1.cni.cncf.io/mynetworks: vxlan1,macvlan3
     spec:
       affinity:
         podAntiAffinity:
@@ -24,10 +24,10 @@ spec:
                   - key: app
                     operator: In
                     values:
-                      - example-vxlan
+                      - example
               topologyKey: "kubernetes.io/hostname"
       containers:
-        - name: example-vxlan
+        - name: example
           image: busybox
           command:
             - sleep

@@ -1,0 +1,40 @@
+apiVersion: "k8s.cni.cncf.io/v1"
+kind: NetworkDefinition
+metadata:
+  name: macvlan3
+spec:
+  config: '{
+    "cniVersion": "0.3.0",
+    "type": "macvlan",
+    "master": "eth2",
+    "mode": "passthru",
+    "ipam": {
+    "type": "multus-ipam",
+    "ranges": [
+    [
+    {
+    "subnet": "10.103.0.0/16",
+    "rangeStart": "10.103.0.0",
+    "rangeEnd": "10.103.200.255",
+    "reserves":
+    [
+    "10.103.0.0",
+    "10.103.255.255"
+    ]
+    }
+    ]
+    ],
+    "fixRange": {
+    "subnet": "10.103.0.0/16",
+    "rangeStart": "10.103.201.0",
+    "rangeEnd": "10.103.255.255",
+    "reserves": [
+    "10.103.0.0",
+    "10.103.255.255"
+    ]
+    },
+    "routes": [
+    { "dst": "0.0.0.0/0" }
+    ]
+    }
+    }'
