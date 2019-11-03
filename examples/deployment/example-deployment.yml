@@ -14,7 +14,7 @@ spec:
       labels:
         app: example
       annotations:
-        k8s.v1.cni.cncf.io/mynetworks: vxlan1,macvlan3
+        k8s.v1.cni.cncf.io/mynetworks: vxlan1 #,macvlan3
     spec:
       affinity:
         podAntiAffinity:

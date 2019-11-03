@@ -43,7 +43,7 @@ func init() {
 	runtime.LockOSThread()
 	//for debug
 	logging.SetLogFile("/var/log/multus-vxlan.log")
-	logging.SetLogLevel("error")
+	logging.SetLogLevel("debug")
 }
 
 func loadNetConf(bytes []byte) (*NetConf, string, error) {
@@ -95,19 +95,6 @@ func cmdAdd(args *skel.CmdArgs) error {
 	if err := netlink.LinkSetUp(vxlan); err != nil {
 		return logging.Errorf("Enable vxlan failed")
 	}
-
-	// if n.IPAM.Type != "" {
-	// 	for _, ip := range result.IPs {
-	// 		i := ip.Address
-	// 		i.IP = i.IP.Mask(i.Mask)
-	// 		err := netlink.RouteAdd(&netlink.Route{LinkIndex: vxlan.Attrs().Index, Scope: netlink.SCOPE_UNIVERSE, Dst: &i})
-	// 		if err != nil {
-	// 			logging.Errorf("RouteAdd %v Dst:%v, failed, %v", vxlan.Attrs().Index, i, err)
-	// 		} else {
-	// 			logging.Verbosef("RouteAdd %v Dst:%v successed", vxlan.Attrs().Index, i)
-	// 		}
-	// 	}
-	// }
 
 	etcdv3cli.RecVxlan(n.Name, vxlan)
 

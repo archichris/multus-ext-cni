@@ -36,7 +36,7 @@ import (
 func init() {
 	//for debug
 	logging.SetLogFile("/var/log/multus-ipam.log")
-	logging.SetLogLevel("debug")
+	logging.SetLogLevel("error")
 }
 
 func main() {
@@ -187,8 +187,12 @@ func formRangeSets(origin []allocator.RangeSet, network string, unit uint32, sto
 						r.RangeEnd = cr.RangeEnd
 					}
 					rs = append(rs, r)
+				} else {
+					subnet := (*net.IPNet)(&ro.Subnet)
+					if !(subnet.Contains(cr.RangeStart) && subnet.Contains(cr.RangeEnd)) {
+						store.DeleteCache(&cr)
+					}
 				}
-
 			}
 		}
 		rss = append(rss, rs)

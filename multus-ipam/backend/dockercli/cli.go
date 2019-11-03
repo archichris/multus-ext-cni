@@ -12,13 +12,16 @@ import (
 	"golang.org/x/net/context"
 )
 
-func IPAMCheckLocalIPs() error {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+func IPAMCheckLocalIPs(dir string) error {
+	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
-		return logging.Errorf("create docker cli (%v,%v) failed, %v", client.FromEnv, client.WithAPIVersionNegotiation(), err)
+		return logging.Errorf("create docker cli failed, %v", err)
 	}
-	leases := disk.LoadAllLeases("", "")
+	leases := disk.LoadAllLeases("", dir)
 	for f, id := range leases {
+		if id == "gateway" {
+			continue
+		}
 		containers, err := cli.ContainerList(context.Background(),
 			types.ContainerListOptions{Filters: filters.NewArgs(filters.KeyValuePair{"id", id})})
 		if err != nil {

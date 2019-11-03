@@ -28,15 +28,19 @@ import (
 	"github.com/intel/multus-cni/dev"
 	"github.com/intel/multus-cni/etcdv3"
 	"github.com/intel/multus-cni/logging"
-	ipamcli "github.com/intel/multus-cni/multus-ipam/backend/etcdv3cli"
-	vxcli "github.com/intel/multus-cni/multus-vxlan/backend/etcdv3cli"
+	ipamDocker "github.com/intel/multus-cni/multus-ipam/backend/dockercli"
+	ipamEtcd "github.com/intel/multus-cni/multus-ipam/backend/etcdv3cli"
+	vxEtcd "github.com/intel/multus-cni/multus-vxlan/backend/etcdv3cli"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/net/context"
 )
 
 var (
 	defaultWaitTime   = 5 * time.Second
-	defaultTickerTime = time.Duration(60+rand.Intn(30)) * time.Minute // 6 * time.Hour
+	defaultTickerTime = time.Duration(5+rand.Intn(2)) * time.Minute
+	// ipamEtcdCheckTicker  = 1
+	// ipamLocalCheckTicker = 10
+	// vxEtcdCheckTicker    = 1
 )
 
 // var (
@@ -85,7 +89,7 @@ func (d *multusd) Run() {
 	d.procHistoryRecord("")
 
 	//todo prevent out of ord between history record and watching
-	ipamcli.IPAMCheck()
+	ipamEtcd.IPAMCheckEtcd()
 	tickerTime := defaultTickerTime
 	tmp := os.Getenv("TICKER_TIME")
 	if tmp != "" {
@@ -102,9 +106,10 @@ func (d *multusd) Run() {
 			logging.Verbosef("ctx stop multusd")
 			return
 		case <-ticker.C:
-			logging.Debugf("ticker run")
-			ipamcli.IPAMCheck()
-			vxcli.CacheToEtcd()
+			// logging.Debugf("ticker run")
+			ipamEtcd.IPAMCheckEtcd()
+			ipamDocker.IPAMCheckLocalIPs("")
+			vxEtcd.CacheToEtcd()
 		}
 	}
 }
@@ -124,7 +129,7 @@ func (d *multusd) Watching(ctx context.Context, keyPrefix string) {
 		for wresp := range rch {
 			for _, ev := range wresp.Events {
 				logging.Verbosef("Watch: %s %q: %q \n", ev.Type, ev.Kv.Key, ev.Kv.Value)
-				name, src := vxcli.ParseVxlan(ev.Kv.Key, ev.Kv.Value)
+				name, src := vxEtcd.ParseVxlan(ev.Kv.Key, ev.Kv.Value)
 				switch ev.Type.String() {
 				case "DELETE":
 					d.watchedDelSubnet(name, src)
@@ -154,7 +159,7 @@ func (d *multusd) procHistoryRecord(vx string) error {
 	}
 	for _, ev := range getResp.Kvs {
 		logging.Verbosef("process: PUT %q: %q \n", string(ev.Key), string(ev.Value))
-		name, src := vxcli.ParseVxlan(ev.Key, ev.Value)
+		name, src := vxEtcd.ParseVxlan(ev.Key, ev.Value)
 		if (len(vx) == 0) || (vx == name) {
 			d.watchedAddSubnet(name, src)
 		}

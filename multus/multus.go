@@ -54,6 +54,8 @@ var defaultReadinessBackoff = wait.Backoff{
 	Jitter:   0.1,
 }
 
+var defaultCNIVer = "0.3.0"
+
 func printVersionString() string {
 	return fmt.Sprintf("multus-cni version:%s, commit:%s, date:%s",
 		version, commit, date)
@@ -174,6 +176,10 @@ func conflistDel(rt *libcni.RuntimeConf, rawnetconflist []byte, binDir string, e
 	confList, err := libcni.ConfListFromBytes(rawnetconflist)
 	if err != nil {
 		return logging.Errorf("error in converting the raw bytes to conflist: %v", err)
+	}
+
+	if confList.CNIVersion == "" {
+		confList.CNIVersion = defaultCNIVer
 	}
 
 	err = cniNet.DelNetworkList(context.Background(), confList, rt)

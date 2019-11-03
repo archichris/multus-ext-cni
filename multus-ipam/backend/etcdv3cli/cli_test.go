@@ -304,7 +304,7 @@ var _ = Describe("Cli", func() {
 			s.AppendCache(srs[3])
 			caches, _ = s.LoadCache()
 			Expect(len(caches)).To(Equal(2))
-			IPAMCheck()
+			IPAMCheckEtcd()
 			caches, _ = s.LoadCache()
 			Expect(len(caches)).To(Equal(n))
 			for _, csr := range caches {
@@ -340,7 +340,7 @@ var _ = Describe("Cli", func() {
 			resp, _ := em.Cli.Get(ctx, keyDir, clientv3.WithPrefix())
 			cancel()
 			Expect(len(resp.Kvs)).To(Equal(n - 2))
-			IPAMCheck()
+			IPAMCheckEtcd()
 			ctx, cancel = context.WithTimeout(context.Background(), etcdv3.RequestTimeout)
 			resp, _ = em.Cli.Get(ctx, keyDir, clientv3.WithPrefix())
 			cancel()
@@ -374,7 +374,7 @@ var _ = Describe("Cli", func() {
 			resp, _ := em.Cli.Get(ctx, keyDir, clientv3.WithPrefix())
 			cancel()
 			Expect(len(resp.Kvs)).To(Equal(0))
-			IPAMCheck()
+			IPAMCheckEtcd()
 			ctx, cancel = context.WithTimeout(context.Background(), etcdv3.RequestTimeout)
 			resp, _ = em.Cli.Get(ctx, keyDir, clientv3.WithPrefix())
 			cancel()
@@ -411,7 +411,7 @@ var _ = Describe("Cli", func() {
 
 			caches, _ := s.LoadCache()
 			Expect(len(caches)).To(Equal(2))
-			IPAMCheck()
+			IPAMCheckEtcd()
 			caches, _ = s.LoadCache()
 			Expect(len(caches)).To(Equal(0))
 			ctx, cancel := context.WithTimeout(context.Background(), etcdv3.RequestTimeout)
@@ -467,6 +467,8 @@ var _ = Describe("Cli", func() {
 				lease = append(lease, network)
 			}
 
+			logging.Debugf("lease: %v", lease)
+
 			for i := 0; i < n; i++ {
 				for j := 1; j < n; j++ {
 					if i == j {
@@ -474,8 +476,9 @@ var _ = Describe("Cli", func() {
 					}
 					Expect(lease[i].String()).NotTo(Equal(lease[j].String()))
 				}
-				network, err := IPAMApplyFixIP(netConf.Name, &netConf.IPAM.Ranges[0][0], fmt.Sprintf(fixInfoTmp, i))
+				network, err := IPAMApplyFixIP(netConf.Name, netConf.IPAM.FixRange, fmt.Sprintf(fixInfoTmp, i))
 				Expect(err).To(BeNil())
+				logging.Debugf("network: info:%v, net:%v", fmt.Sprintf(fixInfoTmp, i), network)
 				Expect(lease[i].String()).To(Equal(network.String()))
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), etcdv3.RequestTimeout)

@@ -22,7 +22,6 @@ import (
 
 	"github.com/containernetworking/cni/pkg/types"
 	types020 "github.com/containernetworking/cni/pkg/types/020"
-	"github.com/intel/multus-cni/logging"
 )
 
 // The top-level network config - IPAM plugins are passed the full configuration
@@ -118,12 +117,12 @@ func LoadIPAMConfig(bytes []byte, envArgs string) (*Net, string, error) {
 	}
 
 	// Logging
-	if n.LogFile != "" {
-		logging.SetLogFile(n.LogFile)
-	}
-	if n.LogLevel != "" {
-		logging.SetLogLevel(n.LogLevel)
-	}
+	// if n.LogFile != "" {
+	// 	logging.SetLogFile(n.LogFile)
+	// }
+	// if n.LogLevel != "" {
+	// 	logging.SetLogLevel(n.LogLevel)
+	// }
 
 	// Parse custom IP from both env args *and* the top-level args config
 	if envArgs != "" {

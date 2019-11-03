@@ -215,8 +215,8 @@ func ipamCheckNet(em *etcdv3.EtcdMultus, network string, leases []allocator.Simp
 	}
 }
 
-func IPAMCheck() error {
-	logging.Debugf("Going to check IPAM")
+func IPAMCheckEtcd() error {
+	// logging.Debugf("Going to check IPAM")
 	etcdMultus, err := etcdv3.New()
 	cli, rKeyDir, id := etcdMultus.Cli, etcdMultus.RootKeyDir, etcdMultus.Id
 	if err != nil {
@@ -291,7 +291,7 @@ func IPAMApplyFixIP(network string, r *allocator.Range, fixInfo string) (*net.IP
 		logging.Debugf("Key:%v, Value:%v, fixInfo:%v", string(ev.Key), string(ev.Value), fixInfo)
 		fix := ipaddr.StrToUint32(filepath.Base(string(ev.Key)))
 		addr := ipaddr.Uint32ToIP4(fix)
-		v := string(ev.Key)
+		v := string(ev.Value)
 
 		if (ip.Cmp(r.RangeStart, addr) > 0) || (ip.Cmp(r.RangeEnd, addr) < 0) {
 			if v == fixInfo {

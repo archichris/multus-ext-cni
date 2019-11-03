@@ -217,7 +217,7 @@ func GetEscapedPath(dataDir string, fname string) string {
 	return filepath.Join(dataDir, fname)
 }
 
-func (s *Store) GetDir() string {
+func (s *Store) Dir() string {
 	return s.dataDir
 }
 
@@ -317,8 +317,6 @@ func GetAllNet(d string) []string {
 
 	networks := []string{}
 
-	logging.Debugf("data dir is %v", dir)
-
 	files, _ := ioutil.ReadDir(dir)
 	for _, file := range files {
 		if file.IsDir() {
@@ -338,4 +336,52 @@ func (s *Store) LoadGW(id string, ifname string) net.IP {
 		return ips[0]
 	}
 	return net.IPv4zero
+}
+
+func LoadAllLeases(network string, d string) map[string]string {
+	dataDir := d
+	if dataDir == "" {
+		dataDir = defaultDataDir
+	}
+	var ns []string
+	if network != "" {
+		ns = []string{network}
+	} else {
+		ns = GetAllNet(dataDir)
+	}
+
+	leases := map[string]string{}
+
+	for _, n := range ns {
+		dir := filepath.Join(dataDir, n)
+		files, _ := ioutil.ReadDir(dir)
+		for _, file := range files {
+			if file.IsDir() {
+				continue
+			}
+			if strings.Contains(strings.ToLower(file.Name()), "lock") {
+				continue
+			}
+			if ip := net.ParseIP(file.Name()); ip == nil {
+				logging.Verbosef("find an unregnized file %v", file.Name())
+				continue
+			}
+			fulPath := filepath.Join(dir, file.Name())
+			id := GetID(fulPath)
+			logging.Debugf("file:%v, id:%v", fulPath, id)
+			if id != "" {
+				leases[fulPath] = id
+			}
+		}
+	}
+	return leases
+}
+
+func GetID(file string) string {
+	data, err := ioutil.ReadFile(file)
+	if err != nil {
+		logging.Errorf("read file %v failed, %v", file, err)
+		return ""
+	}
+	return strings.Trim(strings.Split(string(data), "\n")[0], " \r\t")
 }

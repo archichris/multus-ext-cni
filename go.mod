@@ -9,6 +9,10 @@ require (
 	github.com/containernetworking/plugins v0.8.2
 	github.com/coreos/etcd v3.3.10+incompatible
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
+	github.com/docker/distribution v2.7.1+incompatible // indirect
+	github.com/docker/docker v1.13.1
+	github.com/docker/go-connections v0.4.0 // indirect
+	github.com/docker/go-units v0.4.0 // indirect
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6 // indirect
 	github.com/google/btree v0.0.0-20160524151835-7d79101e329e // indirect
@@ -25,6 +29,8 @@ require (
 	github.com/jonboulle/clockwork v0.1.0 // indirect
 	github.com/onsi/ginkgo v1.9.0
 	github.com/onsi/gomega v1.6.0
+	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
+	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pkg/errors v0.8.1
 	github.com/prometheus/client_golang v1.1.0 // indirect
@@ -50,3 +56,5 @@ require (
 	k8s.io/kubernetes v1.13.0
 	sigs.k8s.io/yaml v1.1.0 // indirect
 )
+
+replace github.com/docker/docker v1.13.1 => github.com/docker/engine v1.4.2-0.20180816081446-320063a2ad06
