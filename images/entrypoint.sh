@@ -402,7 +402,7 @@ EOF
 }
 generateMultusConf
 
-ETCD_CFG_DIR=${ETCD_FILE_HOST_DIR} TICKER_TIME=${MULTUS_TICKER_TIME} ${DAEMON_BIN_FILE} &
+ETCD_CFG_DIR=${ETCD_FILE_HOST_DIR} TICKER_TIME=${MULTUS_TICKER_TIME} DOCKER_HOST="unix:///host/var/run/docker.sock"  ${DAEMON_BIN_FILE} &
 
 # ---------------------- end Generate "00-multus.conf".
 

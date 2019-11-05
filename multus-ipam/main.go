@@ -36,7 +36,7 @@ import (
 func init() {
 	//for debug
 	logging.SetLogFile("/var/log/multus-ipam.log")
-	logging.SetLogLevel("error")
+	logging.SetLogLevel("debug")
 }
 
 func main() {
@@ -110,18 +110,35 @@ func cmdAdd(args *skel.CmdArgs) error {
 
 	result.Routes = ipamConf.Routes
 
+	// logging.Debugf("AllocGW is %v", ipamConf.AllocGW)
+
 	if ipamConf.AllocGW == true {
-		gw := store.LoadGW("gateway", "gateway")
-		if ip.Cmp(gw, net.IPv4zero) != 0 {
-			if !result.IPs[0].Address.Contains(gw) {
-				store.Release(gw)
-				gw = net.IPv4zero
+		gwsLocal := store.GetByID("gateway", "gateway")
+		var gw net.IP
+		// logging.Debugf("choose gw form %v", gwsLocal)
+		for _, g := range gwsLocal {
+			if ip.Cmp(g, net.IPv4zero) != 0 {
+				if gw != nil {
+					store.Release(g)
+					logging.Verbosef("release redundant gw ip %v", g)
+				} else {
+					if !result.IPs[0].Address.Contains(g) {
+						store.Release(g)
+						logging.Verbosef("release invalid gw ip %v", g)
+					} else {
+						logging.Debugf("get gw  %v", g)
+						gw = g
+					}
+				}
 			}
 		}
-		if ip.Cmp(gw, net.IPv4zero) == 0 {
+
+		if gw == nil {
 			r, err := allocateIP(netConf, store, "gateway", "gateway")
 			if err == nil {
 				gw = r[0].Address.IP
+			} else {
+				gw = net.IPv4zero
 			}
 		}
 		result.IPs[0].Gateway = gw

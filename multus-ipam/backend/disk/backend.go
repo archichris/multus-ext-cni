@@ -331,12 +331,9 @@ func GetAllNet(d string) []string {
 }
 
 // LoadRangeSetFromCache is used to load IP range set "startIP:endIP" from cache file
-func (s *Store) LoadGW(id string, ifname string) net.IP {
-	if ips := s.GetByID(id, ifname); ips != nil {
-		return ips[0]
-	}
-	return net.IPv4zero
-}
+// func (s *Store) LoadGW(id string, ifname string) []net.IP {
+// 	return s.GetByID(id, ifname)
+// }
 
 func LoadAllLeases(network string, d string) map[string]string {
 	dataDir := d

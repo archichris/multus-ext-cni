@@ -3,6 +3,7 @@ package etcdv3
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -220,7 +221,8 @@ func TransPutKey(c *clientv3.Client, key string, value string, noExist bool) err
 			return logging.Errorf("failed to check key %v, %v", key, err)
 		}
 		if len(resp.Kvs) != 0 {
-			return logging.Errorf("key %v exists", key)
+			logging.Verbosef("key %v exists", key)
+			return fmt.Errorf("key %v exists", key)
 		}
 	}
 

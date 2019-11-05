@@ -63,6 +63,14 @@ func cacheRec(vxlan, src string) error {
 }
 
 func CacheToEtcd() error {
+	_, err := os.Stat(cacheDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return logging.Errorf("there is something wrong with data dir %v, %v", cacheDir, err)
+	}
+
 	lk, err := disk.NewFileLock(cacheDir)
 	if err != nil {
 		return logging.Errorf("create dir mutex in %v failed, %v", cacheDir, err)

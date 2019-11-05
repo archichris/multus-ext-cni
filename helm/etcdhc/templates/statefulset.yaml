@@ -260,6 +260,7 @@ spec:
         emptyDir:
           medium: Memory
       {{- else }}
-        emptyDir: {}
+        hostPath:
+          path: /var/run/dbcni
       {{- end }}
   {{- end }}

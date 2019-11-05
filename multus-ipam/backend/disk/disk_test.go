@@ -32,21 +32,21 @@ var _ = Describe("Disk", func() {
 
 	It("should return zero IP when gateway file does not exist", func() {
 		store, _ := New(network, dataDir)
-		gw := store.LoadGW("gateway", "gateway")
-		Expect(ip.Cmp(gw, net.IPv4zero)).To(Equal(0))
+		gws := store.GetByID("gateway", "gateway")
+		Expect(gws).To(BeNil())
 	})
 
 	It("should get and clear gateway IP correctly", func() {
 		store, _ := New(network, dataDir)
 		store.Reserve("gateway", "gateway", net.ParseIP(gwIP), "0")
-		gw := store.LoadGW("gateway", "gateway")
-		Expect(ip.Cmp(gw, net.IPv4zero)).NotTo(Equal(0))
-		Expect(ip.Cmp(gw, net.ParseIP(gwIP))).To(Equal(0))
+		gws := store.GetByID("gateway", "gateway")
+		Expect(gws).NotTo(BeNil())
+		Expect(ip.Cmp(gws[0], net.ParseIP(gwIP))).To(Equal(0))
 		lgw := store.GetByID("gateway", "gateway")[0]
-		Expect(ip.Cmp(gw, lgw)).To(Equal(0))
+		Expect(ip.Cmp(gws[0], lgw)).To(Equal(0))
 		store.ReleaseByID("gateway", "gateway")
-		gw = store.LoadGW("gateway", "gateway")
-		Expect(ip.Cmp(gw, net.IPv4zero)).To(Equal(0))
+		gws = store.GetByID("gateway", "gateway")
+		Expect(gws).To(BeNil())
 	})
 
 	It("get id from file correctly", func() {

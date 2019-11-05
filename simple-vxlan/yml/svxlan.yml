@@ -1,0 +1,52 @@
+apiVersion: "k8s.cni.cncf.io/v1"
+kind: NetworkDefinition
+metadata:
+  name: svxlan
+spec:
+  config: '{
+    "cniVersion": "0.3.0",
+    "type": "simple-vxlan",
+    "master": "eth0",
+    "ipMasq": true,
+    "isGateway": true,
+    "isDefaultGateway": false,
+    "forceAddress": true,
+    "hairpinMode": true,
+    "vlan": 0,
+    "vxlan":{
+    "vxlanId": 201,
+    "port": 8472,
+    "learning": true,
+    "gbp": false
+    },
+    "ipam": {
+    "type": "multus-ipam",
+    "ranges": [
+    [
+    {
+    "subnet": "192.168.0.0/16",
+    "rangeStart": "192.168.0.0",
+    "rangeEnd": "192.168.0.255",
+    "reserves":
+    [
+    "192.168.0.0",
+    "192.168.255.255"
+    ]
+    }
+    ]
+    ],
+    	"fixRange": {
+			"subnet": "192.168.0.0/16",
+			"rangeStart": "192.168.1.0",
+			"rangeEnd": "192.168.1.255",
+			"reserves": [
+    "192.168.0.0",
+    "192.168.255.255"
+			]
+		},
+    "allocGW": true,
+    "routes": [
+    { "dst": "0.0.0.0/0" }
+    ]
+    }
+    }'
