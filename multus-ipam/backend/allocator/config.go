@@ -97,12 +97,11 @@ type IPAMArgs struct {
 type RangeSet []Range
 
 type Range struct {
-	SimpleRange
-	// RangeStart net.IP      `json:"rangeStart,omitempty"` // The first ip, inclusive
-	// RangeEnd   net.IP      `json:"rangeEnd,omitempty"`   // The last ip, inclusive
-	Subnet   types.IPNet `json:"subnet"`
-	Gateway  net.IP      `json:"gateway,omitempty"`
-	Reserves []net.IP    `json:"reserves,omitempty"`
+	RangeStart net.IP      `json:"rangeStart,omitempty"` // The first ip, inclusive
+	RangeEnd   net.IP      `json:"rangeEnd,omitempty"`   // The last ip, inclusive
+	Subnet     types.IPNet `json:"subnet"`
+	Gateway    net.IP      `json:"gateway,omitempty"`
+	Reserves   []net.IP    `json:"reserves,omitempty"`
 }
 
 type SimpleRange struct {

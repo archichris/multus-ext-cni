@@ -1,6 +1,6 @@
 # # This Dockerfile is used to build the image available on DockerHub
-# FROM centos:centos7 as build
-FROM centos:centos7
+# FROM centos:centos as build
+FROM centos
 ADD ./images/cni /usr/src/multus-cni/cni
 ADD ./images/package /usr/src/multus-cni/package
 ADD ./bin /usr/src/multus-cni/bin

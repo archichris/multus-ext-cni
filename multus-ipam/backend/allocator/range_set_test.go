@@ -50,7 +50,7 @@ var _ = Describe("range sets", func() {
 		}
 
 		err := p.Canonicalize()
-		Expect(err).To(MatchError("subnets 192.168.0.1-192.168.15.254 and 192.168.2.1-192.168.2.254 overlap"))
+		Expect(err).To(MatchError("ranges 192.168.0.1-192.168.15.254 and 192.168.2.1-192.168.2.254 overlap"))
 	})
 
 	It("should discover overlaps outside a set", func() {

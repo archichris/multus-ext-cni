@@ -74,18 +74,19 @@ func (s *RangeSet) Canonicalize() error {
 		}
 	}
 
-	// Make sure none of the ranges in the set overlap
+	//Check if the ranges overlap
 	l := len(*s)
 	for i, r1 := range (*s)[:l-1] {
 		for _, r2 := range (*s)[i+1:] {
 			if r1.Overlaps(&r2) {
-				return fmt.Errorf("range %s and %s overlap", r1.String(), r2.String())
+				return fmt.Errorf("ranges %s and %s overlap", r1.String(), r2.String())
 			}
 			// all the range set in the same group shall have the same subnet
-			if r1.SubnetStr() != r2.SubnetStr() {
-				return fmt.Errorf("range %s and %s are in the same group, but have different subnet (%s, %s)",
-					r1.String(), r2.String(), r1.SubnetStr(), r2.SubnetStr())
-			}
+			// Todo apply to the new style
+			// if r1.SubnetStr() != r2.SubnetStr() {
+			// 	return fmt.Errorf("range %s and %s are in the same group, but have different subnet (%s, %s)",
+			// 		r1.String(), r2.String(), r1.SubnetStr(), r2.SubnetStr())
+			// }
 		}
 	}
 

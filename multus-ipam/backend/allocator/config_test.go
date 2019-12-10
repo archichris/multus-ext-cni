@@ -41,7 +41,7 @@ var _ = Describe("IPAM config", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(version).Should(Equal("0.3.1"))
 
-		Expect(conf).To(Equal(&IPAMConfig{
+		Expect(conf.IPAM).To(Equal(&IPAMConfig{
 			Name: "mynet",
 			Type: "host-local",
 			Ranges: []RangeSet{
@@ -57,6 +57,8 @@ var _ = Describe("IPAM config", func() {
 					},
 				},
 			},
+			ApplyUnit: defaultApplyUnit,
+			Num:       1,
 		}))
 	})
 
@@ -93,7 +95,7 @@ var _ = Describe("IPAM config", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(version).Should(Equal("0.3.1"))
 
-		Expect(conf).To(Equal(&IPAMConfig{
+		Expect(conf.IPAM).To(Equal(&IPAMConfig{
 			Name: "mynet",
 			Type: "host-local",
 			Ranges: []RangeSet{
@@ -129,6 +131,8 @@ var _ = Describe("IPAM config", func() {
 					},
 				},
 			},
+			ApplyUnit: defaultApplyUnit,
+			Num:       1,
 		}))
 	})
 
@@ -164,7 +168,7 @@ var _ = Describe("IPAM config", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(version).Should(Equal("0.3.1"))
 
-		Expect(conf).To(Equal(&IPAMConfig{
+		Expect(conf.IPAM).To(Equal(&IPAMConfig{
 			Name: "mynet",
 			Type: "host-local",
 			Ranges: []RangeSet{
@@ -202,6 +206,8 @@ var _ = Describe("IPAM config", func() {
 					},
 				},
 			},
+			ApplyUnit: defaultApplyUnit,
+			Num:       1,
 		}))
 	})
 
@@ -228,7 +234,7 @@ var _ = Describe("IPAM config", func() {
 
 		conf, _, err := LoadIPAMConfig([]byte(input), envArgs)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(conf.IPArgs).To(Equal([]net.IP{{10, 1, 2, 10}}))
+		Expect(conf.IPAM.IPArgs).To(Equal([]net.IP{{10, 1, 2, 10}}))
 
 	})
 
@@ -269,7 +275,7 @@ var _ = Describe("IPAM config", func() {
 
 		conf, _, err := LoadIPAMConfig([]byte(input), envArgs)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(conf.IPArgs).To(Equal([]net.IP{
+		Expect(conf.IPAM.IPArgs).To(Equal([]net.IP{
 			{10, 1, 2, 10},
 			{10, 1, 2, 11},
 			{11, 11, 11, 11},
@@ -320,7 +326,7 @@ var _ = Describe("IPAM config", func() {
 			}
 		}`
 		_, _, err := LoadIPAMConfig([]byte(input), "")
-		Expect(err).To(MatchError("invalid range set 0: subnets 10.1.0.1-10.1.3.254 and 10.1.2.1-10.1.2.254 overlap"))
+		Expect(err).To(MatchError("invalid range set 0: ranges 10.1.0.1-10.1.3.254 and 10.1.2.1-10.1.2.254 overlap"))
 	})
 
 	It("should error on rangesets with different families", func() {
