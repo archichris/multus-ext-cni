@@ -32,6 +32,9 @@ MULTUS_CLEANUP_CONFIG_ON_EXIT=false
 RESTART_CRIO=false
 CRIO_RESTARTED_ONCE=false
 RENAME_SOURCE_CONFIG_FILE=false
+CNI_VERSION=0.3.1
+MULTUS_CRD_PLURAL="network-definitions"
+MULTUS_ANNOTATION="mynetworks"
 # host_etcd configuration
 EXTEND_FUNCTION=true
 DAEMON_BIN_FILE="/usr/src/multus-cni/bin/multus-daemon"
@@ -73,14 +76,8 @@ function usage() {
   echo -e "\t--rename-conf-file=false (used only with --multus-conf-file=auto)"
   echo -e "\t--restart-crio=false (restarts CRIO after config file is generated)"
   # multus-ipam Configuration
-  echo -e "\t--extend-function=true (enable extend function)"
-  echo -e "\t--etcd-conf-file=$ETCD_CONF_FILE"
+  echo -e "\t--extend-function=$EXTEND_FUNCTION (enable extend function)"
   echo -e "\t--multus-ticker-time=$MULTUS_TICKER_TIME"
-  echo -e "\t--etcd-file-host=$ETCD_FILE_HOST"
-  # echo -e "\t--multus-ipam-bin-file=$MULTUS_IPAM_BIN_FILE"
-  # echo -e "\t--multus-vxlan-bin-file=$MULTUS_VXLAN_BIN_FILE"
-  # Driver Directory
-  echo -e "\t--ext-driver-dir=$EXT_DRIVER_DIR"
 }
 
 function log() {
@@ -149,15 +146,15 @@ while [ "$1" != "" ]; do
   --extend-function)
     EXTEND_FUNCTION=$VALUE
     ;;
-  --etcd-tls)
-    ETCD_TLS=$VALUE
-    ;;
-  --ext-driver-dir)
-    EXT_DRIVER_DIR=$VALUE
-    ;;
   --multus-ticker-time)
     MULTUS_TICKER_TIME=$VALUE
     ;;
+  --multus-crd-plural)
+    MULTUS_CRD_PLURAL=$VALUE
+    ;;
+  --multus-annotation)
+    MULTUS_ANNOTATION=$VALUE
+    ;;    
   *)
     warn "unknown parameter \"$PARAM\""
     ;;
@@ -253,38 +250,48 @@ fi
 
 # ---------------------- end Generate a "kube-config".
 
-# ---------------------- Generate a "ectd configuration".
-# mkdir -p $MULTUS_VXLAN_HOST
+# ---------------------- start Extend function-----------------------
+if [ "$EXTEND_FUNCTION" == true ]; then 
 
-# Copy other missing cni
-for cni in $(ls $SRC_CNI_BIN); do
-  if [ ! -f $CNI_BIN_DIR/$cni ]; then
-    cp $SRC_CNI_BIN/$cni $CNI_BIN_DIR/$cni
+  # Copy other missing cni
+  for cni in $(ls $SRC_CNI_BIN); do
+    if [ ! -f $CNI_BIN_DIR/$cni ]; then
+      cp $SRC_CNI_BIN/$cni $CNI_BIN_DIR/$cni
+    fi
+  done
+
+  # install ipvlan drivers
+  set +e
+  modinfo ipvlan
+  if [ $? == 1 ]; then
+      $EXT_DRIVER_DIR/ipvlan/ipvlan.sh update
   fi
-done
+  set -e
 
-# install ipvlan drivers
-set +e
-modinfo ipvlan
-if [ $? == 1 ]; then
-    $EXT_DRIVER_DIR/ipvlan/ipvlan.sh update
-fi
-set -e
+  # Copy etcd conf
+  MULTUS_ETCD_DIR=$CNI_CONF_DIR/multus.d/etcd
+  mkdir -p $MULTUS_ETCD_DIR
+  cp -f  $ETCD_CONF_FILE $ETCD_FILE_HOST
 
-# Copy etcd conf
-MULTUS_ETCD_DIR=$CNI_CONF_DIR/multus.d/etcd
-mkdir -p $MULTUS_ETCD_DIR
-cp -f  $ETCD_CONF_FILE $ETCD_FILE_HOST
+  echo $HOSTNAME > $MULTUS_ETCD_DIR/id
 
-echo $HOSTNAME > $MULTUS_ETCD_DIR/id
-
-# copy cert, key, ca to etcd directory
-if [ -d "$CERTS_CLIENT" ]; then
-  mkdir -p $MULTUS_ETCD_DIR/pki
-  cp -f $CERTS_CLIENT/* $MULTUS_ETCD_DIR/pki
+  # copy cert, key, ca to etcd directory
+  if [ -d "$CERTS_CLIENT" ]; then
+    mkdir -p $MULTUS_ETCD_DIR/pki
+    cp -f $CERTS_CLIENT/* $MULTUS_ETCD_DIR/pki
+  fi
 fi
 
-# ---------------------- end a "ectd configuration".
+# start daemon 
+function checkDaemon(){
+  count=`ps -ef |grep $DAEMON_BIN_FILE |grep -v "grep" |wc -l`
+  #echo $count
+  if [ 0 == $count ];then
+    ETCD_CFG_DIR=${ETCD_FILE_HOST_DIR} TICKER_TIME=${MULTUS_TICKER_TIME} DOCKER_HOST="unix:///host/var/run/docker.sock"  ${DAEMON_BIN_FILE} &
+  fi
+}
+
+# ---------------------- end Extend function --------------------
 
 # ------------------------------- Generate "00-multus.conf"
 
@@ -359,6 +366,16 @@ function generateMultusConf() {
           MASTER_PLUGIN_NET_NAME="multus-cni-network"
         fi
 
+        MULTUS_CRD_PLURAL_STRING=""
+        if [ ! -z "${MULTUS_CRD_PLURAL// /}" ]; then
+          MULTUS_CRD_PLURAL_STRING="\"crd\": \"$MULTUS_CRD_PLURAL\","
+        fi
+
+        MULTUS_ANNOTATION_STRING=""
+        if [ ! -z "${MULTUS_ANNOTATION// /}" ]; then
+          MULTUS_ANNOTATION_STRING="\"annot\": \"$MULTUS_ANNOTATION\","
+        fi
+
         MASTER_PLUGIN_LOCATION=$MULTUS_AUTOCONF_DIR/$MASTER_PLUGIN
         MASTER_PLUGIN_JSON="$(cat $MASTER_PLUGIN_LOCATION)"
         log "Using $MASTER_PLUGIN_LOCATION as a source to generate the Multus configuration"
@@ -371,6 +388,8 @@ function generateMultusConf() {
           $ISOLATION_STRING
           $LOG_LEVEL_STRING
           $LOG_FILE_STRING
+          $MULTUS_CRD_PLURAL_STRING
+          $MULTUS_ANNOTATION_STRING    
           "kubeconfig": "$MULTUS_KUBECONFIG_FILE_HOST",
           "delegates": [
             $MASTER_PLUGIN_JSON
@@ -406,18 +425,24 @@ ETCD_CFG_DIR=${ETCD_FILE_HOST_DIR} TICKER_TIME=${MULTUS_TICKER_TIME} DOCKER_HOST
 
 # ---------------------- end Generate "00-multus.conf".
 
+
+
 # Enter either sleep loop, or watch loop...
-if [ "$MULTUS_CLEANUP_CONFIG_ON_EXIT" == true ]; then
-  log "Entering watch loop..."
+if [ "$MULTUS_CLEANUP_CONFIG_ON_EXIT" == true ] || [ "$EXTEND_FUNCTION" == true ]; then
   while true; do
-    # Check and see if the original master plugin configuration exists...
-    if [ ! -f "$MASTER_PLUGIN_LOCATION" ]; then
-      log "Master plugin @ $MASTER_PLUGIN_LOCATION has been deleted. Performing cleanup..."
-      cleanup
-      generateMultusConf
-      log "Continuing watch loop after configuration regeneration..."
+    if [ "$EXTEND_FUNCTION" == true ]; then  
+      checkDaemon
     fi
-    sleep 1
+    # Check and see if the original master plugin configuration exists...
+    if [ "$MULTUS_CLEANUP_CONFIG_ON_EXIT" == true ]; then
+      if [ ! -f "$MASTER_PLUGIN_LOCATION" ]; then
+        log "Master plugin @ $MASTER_PLUGIN_LOCATION has been deleted. Performing cleanup..."
+        cleanup
+        generateMultusConf
+        log "Continuing watch loop after configuration regeneration..."
+      fi
+    fi
+    sleep 5
   done
 else
   log "Entering sleep (success)..."

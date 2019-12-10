@@ -141,7 +141,10 @@ func cmdAdd(args *skel.CmdArgs) error {
 				gw = net.IPv4zero
 			}
 		}
-		result.IPs[0].Gateway = gw
+		for i := 0; i < len(result.IPs); i++ {
+			result.IPs[i].Gateway = gw
+		}
+
 	}
 	logging.Debugf("IPs: %v", result.IPs)
 	return types.PrintResult(result, confVersion)
@@ -237,7 +240,7 @@ func allocateIP(netConf *allocator.Net, store *disk.Store, containerID string, i
 
 		if len(rs) > 0 {
 			alloc = allocator.NewIPAllocator(&rs, store, idx)
-			logging.Debugf("allocator(%v, %v, %v) return v%", rs, store, idx, alloc)
+			logging.Debugf("allocator(%v, %v, %v) return %v", rs, store, idx, alloc)
 			ipConf, err = alloc.Get(containerID, ifName, nil)
 		} else {
 			err = logging.Errorf("no IP addresses available in range set")
@@ -254,7 +257,7 @@ func allocateIP(netConf *allocator.Net, store *disk.Store, containerID string, i
 					r := ipamConf.Ranges[idx][0]
 					r.RangeStart, r.RangeEnd = sr.RangeStart, sr.RangeEnd
 					alloc = allocator.NewIPAllocator(&(allocator.RangeSet{r}), store, idx)
-					logging.Debugf("NewIPAllocator(%v, %v, %v) return v%", allocator.RangeSet{r}, store, idx, alloc)
+					logging.Debugf("NewIPAllocator(%v, %v, %v) return %v", allocator.RangeSet{r}, store, idx, alloc)
 					ipConf, err = alloc.Get(containerID, ifName, nil)
 					if err != nil {
 						logging.Errorf("alloc ip from range %v failed, %v", r, err)
@@ -285,16 +288,17 @@ func allocateFixIP(netConf *allocator.Net) ([]*current.IPConfig, error) {
 		return nil, logging.Errorf("missing fix infor PodName(%v), K8sNs(%v)", ipamConf.PodName, ipamConf.K8sNs)
 	}
 
-	fixInfo := etcdv3cli.IPAMGenFixInfo(ipamConf.K8sNs, ipamConf.PodName)
-	n, err := etcdv3cli.IPAMApplyFixIP(netConf.Name, ipamConf.FixRange, fixInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	return []*current.IPConfig{
-		&current.IPConfig{
+	IPs := []*current.IPConfig{}
+	for i := 0; i < ipamConf.Num; i++ {
+		fixInfo := etcdv3cli.IPAMGenFixInfo(ipamConf.K8sNs, ipamConf.PodName, i)
+		n, err := etcdv3cli.IPAMApplyFixIP(netConf.Name, ipamConf.FixRange, fixInfo)
+		if err != nil {
+			return nil, err
+		}
+		IPs = append(IPs, &current.IPConfig{
 			Version: "4",
 			Address: *n,
-			Gateway: ip.NextIP(n.IP.Mask(n.Mask))},
-	}, nil
+			Gateway: ip.NextIP(n.IP.Mask(n.Mask))})
+	}
+	return IPs, nil
 }

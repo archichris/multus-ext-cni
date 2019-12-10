@@ -18,10 +18,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 
 	"github.com/containernetworking/cni/pkg/types"
 	types020 "github.com/containernetworking/cni/pkg/types/020"
+	"github.com/intel/multus-cni/logging"
 )
 
 // The top-level network config - IPAM plugins are passed the full configuration
@@ -71,10 +73,12 @@ type IPAMConfig struct {
 	IPArgs     []net.IP       `json:"-"` // Requested IPs from CNI_ARGS and args
 	ApplyUnit  uint32         `json:"applyUnit,omitempty"`
 	AllocGW    bool           `json:"allocGW,omitempty"`
+	LogFile    string         `json:"logFile,omitempty"`
+	LogLevel   string         `json:"logLevel,omitempty"`
 	PodName    string
 	K8sNs      string
 	IsFixIP    bool
-	// FixNets    []string
+	Num        int
 }
 
 type IPAMEnvArgs struct {
@@ -82,7 +86,8 @@ type IPAMEnvArgs struct {
 	IP                net.IP                     `json:"ip,omitempty"`
 	K8S_POD_NAMESPACE types.UnmarshallableString `json:"k8sPodNamespace,omitempty"`
 	K8S_POD_NAME      types.UnmarshallableString `json:"k8sPodName,omitempty"`
-	Fix               types.UnmarshallableString `json:"extEnv,omitempty"`
+	Fix               types.UnmarshallableString `json:"extEnvFix,omitempty"`
+	Num               types.UnmarshallableString `json:"extEnvNum,omitempty"`
 }
 
 type IPAMArgs struct {
@@ -117,12 +122,12 @@ func LoadIPAMConfig(bytes []byte, envArgs string) (*Net, string, error) {
 	}
 
 	// Logging
-	// if n.LogFile != "" {
-	// 	logging.SetLogFile(n.LogFile)
-	// }
-	// if n.LogLevel != "" {
-	// 	logging.SetLogLevel(n.LogLevel)
-	// }
+	if n.LogFile != "" {
+		logging.SetLogFile(n.LogFile)
+	}
+	if n.LogLevel != "" {
+		logging.SetLogLevel(n.LogLevel)
+	}
 
 	// Parse custom IP from both env args *and* the top-level args config
 	if envArgs != "" {
@@ -145,6 +150,20 @@ func LoadIPAMConfig(bytes []byte, envArgs string) (*Net, string, error) {
 			for _, t := range strings.Split(string(e.Fix), ",") {
 				if strings.ToLower(t) == strings.ToLower(n.Name) {
 					n.IPAM.IsFixIP = true
+					break
+				}
+			}
+		}
+		if e.Num != "" {
+			for _, t := range strings.Split(string(e.Num), ",") {
+				v := strings.Split(t, ":")
+				if strings.ToLower(v[0]) == strings.ToLower(n.Name) {
+					n.IPAM.Num, err = strconv.Atoi(v[1])
+					if err != nil {
+						n.IPAM.Num = 1
+						logging.Errorf("convert %v to int failed", v[1])
+					}
+					break
 				}
 			}
 		}
@@ -220,6 +239,10 @@ func LoadIPAMConfig(bytes []byte, envArgs string) (*Net, string, error) {
 
 	if n.IPAM.ApplyUnit == 0 {
 		n.IPAM.ApplyUnit = defaultApplyUnit
+	}
+
+	if n.IPAM.Num == 0 {
+		n.IPAM.Num = 1
 	}
 
 	return &n, n.CNIVersion, nil

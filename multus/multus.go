@@ -54,7 +54,7 @@ var defaultReadinessBackoff = wait.Backoff{
 	Jitter:   0.1,
 }
 
-var defaultCNIVer = "0.3.0"
+var defaultCNIVer = "0.3.1"
 
 func printVersionString() string {
 	return fmt.Sprintf("multus-cni version:%s, commit:%s, date:%s",
@@ -533,10 +533,6 @@ func cmdDel(args *skel.CmdArgs, exec invoke.Exec, kubeClient k8s.KubeClient) err
 	rt := types.CreateCNIRuntimeConf(args, k8sArgs, "", in.RuntimeConfig)
 	return delPlugins(exec, args.IfName, in.Delegates, len(in.Delegates)-1, rt, in.BinDir)
 }
-
-// func main(){
-// 	k8s.Info()
-// }
 
 func main() {
 

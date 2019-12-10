@@ -37,18 +37,19 @@ import (
 )
 
 var (
-	crdPlural               = "network-attachment-definitions" //-ldflags "-X github.com/intel/multus-cni/k8sclient.annotation"
+	CRDPlural               = "network-attachment-definitions" //-ldflags "-X github.com/intel/multus-cni/k8sclient.annotation"
 	annotation              = "networks"                       //-ldflags "-X github.com/intel/multus-cni/k8sclient.annotation=mynetworks"
-	resourceNameAnnot       = "k8s.v1.cni.cncf.io/resourceName"
-	networkAttachmentAnnot  = "k8s.v1.cni.cncf.io/" + annotation
-	defaultNetAnnot         = networkAttachmentAnnot + "-default"
-	networkAttachmentStatus = networkAttachmentAnnot + "-status"
-	extEnvAnnot             = "k8s.v1.cni.cncf.io/extEnv"
+	ResourceNameAnnot       = "k8s.v1.cni.cncf.io/resourceName"
+	NetworkAttachmentAnnot  = "k8s.v1.cni.cncf.io/" + annotation
+	DefaultNetAnnot         = NetworkAttachmentAnnot + "-default"
+	NetworkAttachmentStatus = NetworkAttachmentAnnot + "-status"
+	ExtEnvAnnot             = "k8s.v1.cni.cncf.io/extEnv"
 )
 
-func Info() {
-	fmt.Printf("%s\n%s\n%s\n%s\n%s\n%s\n", crdPlural, annotation, resourceNameAnnot,
-		networkAttachmentAnnot, defaultNetAnnot, networkAttachmentStatus)
+func init() {
+	logging.Verbosef("CRD:%s\nANNOT:%s\nRESOURE_NAME_ANNOT:%s\nNET_ATTACH_ANNOT:%s\nDEF_NET_ANNOT:%s\nNET_ATTACH_STATUS:%s\n",
+		CRDPlural, annotation, ResourceNameAnnot,
+		NetworkAttachmentAnnot, DefaultNetAnnot, NetworkAttachmentStatus)
 }
 
 // NoK8sNetworkError indicates error, no network in kubernetes
@@ -146,7 +147,7 @@ func setPodNetworkAnnotation(client KubeClient, namespace string, pod *v1.Pod, n
 		pod.Annotations = make(map[string]string)
 	}
 
-	pod.Annotations[networkAttachmentStatus] = networkstatus
+	pod.Annotations[NetworkAttachmentStatus] = networkstatus
 
 	pod = pod.DeepCopy()
 	var err error
@@ -357,7 +358,7 @@ func cniConfigFromNetworkResource(customResource *types.NetworkAttachmentDefinit
 func getKubernetesDelegate(client KubeClient, net *types.NetworkSelectionElement, confdir string, pod *v1.Pod, resourceMap map[string]*types.ResourceInfo) (*types.DelegateNetConf, map[string]*types.ResourceInfo, error) {
 
 	logging.Debugf("getKubernetesDelegate: %v, %v, %s", client, net, confdir)
-	rawPath := fmt.Sprintf("/apis/k8s.cni.cncf.io/v1/namespaces/%s/"+crdPlural+"/%s", net.Namespace, net.Name)
+	rawPath := fmt.Sprintf("/apis/k8s.cni.cncf.io/v1/namespaces/%s/"+CRDPlural+"/%s", net.Namespace, net.Name)
 
 	netData, err := client.GetRawWithPath(rawPath)
 	if err != nil {
@@ -371,7 +372,7 @@ func getKubernetesDelegate(client KubeClient, net *types.NetworkSelectionElement
 
 	// Get resourceName annotation from NetworkAttachmentDefinition
 	deviceID := ""
-	resourceName, ok := customResource.Metadata.Annotations[resourceNameAnnot]
+	resourceName, ok := customResource.Metadata.Annotations[ResourceNameAnnot]
 	if ok && pod.Name != "" && pod.Namespace != "" {
 		// ResourceName annotation is found; try to get device info from resourceMap
 		logging.Debugf("getKubernetesDelegate: found resourceName annotation : %s", resourceName)
@@ -472,7 +473,7 @@ func TryLoadPodDelegates(k8sArgs *types.K8sArgs, conf *types.NetConf, kubeClient
 	networks, err := GetPodNetwork(pod)
 	logging.Debugf("annotations:%v", pod.Annotations)
 	if networks != nil {
-		extEnv, ok := pod.Annotations[extEnvAnnot]
+		extEnv, ok := pod.Annotations[ExtEnvAnnot]
 		logging.Debugf("extEnv:%v,ok:%v", extEnv, ok)
 		if !ok {
 			extEnv = ""
@@ -541,7 +542,7 @@ func GetK8sClient(kubeconfig string, kubeClient KubeClient) (KubeClient, error) 
 func GetPodNetwork(pod *v1.Pod) ([]*types.NetworkSelectionElement, error) {
 	logging.Debugf("GetPodNetwork: %v", pod)
 
-	netAnnot := pod.Annotations[networkAttachmentAnnot]
+	netAnnot := pod.Annotations[NetworkAttachmentAnnot]
 	defaultNamespace := pod.ObjectMeta.Namespace
 
 	if len(netAnnot) == 0 {
@@ -589,7 +590,7 @@ func GetNetworkDelegates(k8sclient KubeClient, pod *v1.Pod, networks []*types.Ne
 
 func getDefaultNetDelegateCRD(client KubeClient, net, confdir, namespace string) (*types.DelegateNetConf, error) {
 	logging.Debugf("getDefaultNetDelegateCRD: %v, %v, %s, %s", client, net, confdir, namespace)
-	rawPath := fmt.Sprintf("/apis/k8s.cni.cncf.io/v1/namespaces/%s/"+crdPlural+"/%s", namespace, net)
+	rawPath := fmt.Sprintf("/apis/k8s.cni.cncf.io/v1/namespaces/%s/"+CRDPlural+"/%s", namespace, net)
 
 	netData, err := client.GetRawWithPath(rawPath)
 	if err != nil {
@@ -705,7 +706,7 @@ func tryLoadK8sPodDefaultNetwork(kubeClient KubeClient, pod *v1.Pod, conf *types
 	var netAnnot string
 	logging.Debugf("tryLoadK8sPodDefaultNetwork: %v, %v, %v", kubeClient, pod, conf)
 
-	netAnnot, ok := pod.Annotations[defaultNetAnnot]
+	netAnnot, ok := pod.Annotations[DefaultNetAnnot]
 	if !ok {
 		logging.Debugf("tryLoadK8sPodDefaultNetwork: Pod default network annotation is not defined")
 		return nil, nil

@@ -672,6 +672,7 @@ var _ = Describe("k8sclient operations", func() {
 	})
 
 	It("uses cached delegates when an error in loading from pod annotation occurs", func() {
+		os.Mkdir("/etc/kubernetes", os.ModePerm)
 		kubeletconf, err := os.Create("/etc/kubernetes/kubelet.conf")
 		kubeletconfDef := `apiVersion: v1
 clusters:
@@ -879,17 +880,17 @@ users:
 			pod, err := kubeClient.GetPod(string(k8sArgs.K8S_POD_NAMESPACE), string(k8sArgs.K8S_POD_NAME))
 
 			// invalid case 1 - can't have more than 2 items separated by "/"
-			pod.Annotations[networkAttachmentAnnot] = "root@someIP/root@someOtherIP/root@thirdIP"
+			pod.Annotations[NetworkAttachmentAnnot] = "root@someIP/root@someOtherIP/root@thirdIP"
 			_, err = GetPodNetwork(pod)
 			Expect(err).To(HaveOccurred())
 
 			// invalid case 2 - can't have more than 2 items separated by "@"
-			pod.Annotations[networkAttachmentAnnot] = "root@someIP/root@someOtherIP@garbagevalue"
+			pod.Annotations[NetworkAttachmentAnnot] = "root@someIP/root@someOtherIP@garbagevalue"
 			_, err = GetPodNetwork(pod)
 			Expect(err).To(HaveOccurred())
 
 			// invalid case 3 - not matching comma-delimited format
-			pod.Annotations[networkAttachmentAnnot] = "root@someIP/root@someOtherIP"
+			pod.Annotations[NetworkAttachmentAnnot] = "root@someIP/root@someOtherIP"
 			_, err = GetPodNetwork(pod)
 			Expect(err).To(HaveOccurred())
 		})

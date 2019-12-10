@@ -29,7 +29,7 @@ CRD_PLURAL=${2:-"network-definitions"}
 set -e
 DATE=$(date --iso-8601=seconds)
 LDFLAGS="-X main.version=${VERSION:-master} -X main.commit=${COMMIT} -X main.date=${DATE}"
-LDFLAGS="$LDFLAGS -X github.com/intel/multus-cni/k8sclient.annotation=${ANNOTATION} -X github.com/intel/multus-cni/k8sclient.crdPlural=${CRD_PLURAL}"
+LDFLAGS="$LDFLAGS -X github.com/intel/multus-cni/k8sclient.annotation=${ANNOTATION} -X github.com/intel/multus-cni/k8sclient.CRDPlural=${CRD_PLURAL}"
 
 # echo $LDFLAGS
 export CGO_ENABLED=0

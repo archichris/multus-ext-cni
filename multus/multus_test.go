@@ -225,7 +225,7 @@ var _ = Describe("multus operations", func() {
 	    "cniVersion": "0.2.0",
 	    "type": "other-plugin"
 	}`
-		fExec.addPlugin(nil, "net1", expectedConf2, expectedResult2, nil)
+		fExec.addPlugin(nil, "eth1", expectedConf2, expectedResult2, nil)
 
 		os.Setenv("CNI_COMMAND", "ADD")
 		os.Setenv("CNI_IFNAME", "eth0")
@@ -301,7 +301,7 @@ var _ = Describe("multus operations", func() {
 	    "cniVersion": "0.2.0",
 	    "type": "other-plugin"
 	}`
-		fExec.addPlugin(nil, "net1", expectedConf2, expectedResult2, nil)
+		fExec.addPlugin(nil, "eth1", expectedConf2, expectedResult2, nil)
 
 		os.Setenv("CNI_COMMAND", "ADD")
 		os.Setenv("CNI_IFNAME", "eth0")
@@ -378,7 +378,7 @@ var _ = Describe("multus operations", func() {
 	    "cniVersion": "0.2.0",
 	    "type": "other-plugin"
 	}`
-		fExec.addPlugin(nil, "net1", expectedConf2, expectedResult2, nil)
+		fExec.addPlugin(nil, "eth1", expectedConf2, expectedResult2, nil)
 
 		os.Setenv("CNI_COMMAND", "ADD")
 		os.Setenv("CNI_IFNAME", "eth0")
@@ -457,7 +457,7 @@ var _ = Describe("multus operations", func() {
 	    "cniVersion": "0.2.0",
 	    "type": "other-plugin"
 	}`
-		fExec.addPlugin(nil, "net1", expectedConf2, expectedResult2, nil)
+		fExec.addPlugin(nil, "eth1", expectedConf2, expectedResult2, nil)
 
 		os.Setenv("CNI_COMMAND", "ADD")
 		os.Setenv("CNI_IFNAME", "eth0")
@@ -534,7 +534,7 @@ var _ = Describe("multus operations", func() {
 	    "cniVersion": "0.2.0",
 	    "type": "other-plugin"
 	}`
-		fExec.addPlugin(nil, "net1", expectedConf2, expectedResult2, nil)
+		fExec.addPlugin(nil, "eth1", expectedConf2, expectedResult2, nil)
 
 		os.Setenv("CNI_COMMAND", "ADD")
 		os.Setenv("CNI_IFNAME", "eth0")
@@ -614,7 +614,7 @@ var _ = Describe("multus operations", func() {
 	    "cniVersion": "0.2.0",
 	    "type": "other-plugin"
 	}`
-		fExec.addPlugin(nil, "net1", expectedConf2, expectedResult2, nil)
+		fExec.addPlugin(nil, "eth1", expectedConf2, expectedResult2, nil)
 
 		os.Setenv("CNI_COMMAND", "ADD")
 		os.Setenv("CNI_IFNAME", "eth0")
@@ -691,7 +691,7 @@ var _ = Describe("multus operations", func() {
 	    "cniVersion": "0.2.0",
 	    "type": "other-plugin"
 	}`
-		fExec.addPlugin(nil, "net1", expectedConf2, expectedResult2, nil)
+		fExec.addPlugin(nil, "eth1", expectedConf2, expectedResult2, nil)
 
 		os.Setenv("CNI_COMMAND", "ADD")
 		os.Setenv("CNI_IFNAME", "eth0")
@@ -770,7 +770,7 @@ var _ = Describe("multus operations", func() {
 	    "cniVersion": "0.2.0",
 	    "type": "other-plugin"
 	}`
-		fExec.addPlugin(nil, "net1", expectedConf2, expectedResult2, nil)
+		fExec.addPlugin(nil, "eth1", expectedConf2, expectedResult2, nil)
 
 		os.Setenv("CNI_COMMAND", "ADD")
 		os.Setenv("CNI_IFNAME", "eth0")
@@ -847,7 +847,7 @@ var _ = Describe("multus operations", func() {
 	    "cniVersion": "0.2.0",
 	    "type": "other-plugin"
 	}`
-		fExec.addPlugin(nil, "net1", expectedConf2, expectedResult2, nil)
+		fExec.addPlugin(nil, "eth1", expectedConf2, expectedResult2, nil)
 
 		os.Setenv("CNI_COMMAND", "ADD")
 		os.Setenv("CNI_IFNAME", "eth0")
@@ -926,7 +926,7 @@ var _ = Describe("multus operations", func() {
 	    "cniVersion": "0.2.0",
 	    "type": "other-plugin"
 	}`
-		fExec.addPlugin(nil, "net1", expectedConf2, expectedResult2, nil)
+		fExec.addPlugin(nil, "eth1", expectedConf2, expectedResult2, nil)
 
 		os.Setenv("CNI_COMMAND", "ADD")
 		os.Setenv("CNI_IFNAME", "eth0")
@@ -1001,7 +1001,7 @@ var _ = Describe("multus operations", func() {
 	    "cniVersion": "0.2.0",
 	    "type": "other-plugin"
 	}`
-		fExec.addPlugin(nil, "net1", expectedConf2, expectedResult2, nil)
+		fExec.addPlugin(nil, "eth1", expectedConf2, expectedResult2, nil)
 
 		os.Setenv("CNI_COMMAND", "ADD")
 		os.Setenv("CNI_IFNAME", "eth0")
@@ -1080,7 +1080,7 @@ var _ = Describe("multus operations", func() {
 	    "cniVersion": "0.2.0",
 	    "type": "other-plugin"
 	}`
-		fExec.addPlugin(nil, "net1", expectedConf2, expectedResult2, nil)
+		fExec.addPlugin(nil, "eth1", expectedConf2, expectedResult2, nil)
 
 		os.Setenv("CNI_COMMAND", "ADD")
 		os.Setenv("CNI_IFNAME", "eth0")
@@ -1150,7 +1150,7 @@ var _ = Describe("multus operations", func() {
 
 		// This plugin invocation should fail
 		err := fmt.Errorf("expected plugin failure")
-		fExec.addPlugin(nil, "net1", expectedConf2, nil, err)
+		fExec.addPlugin(nil, "eth1", expectedConf2, nil, err)
 
 		os.Setenv("CNI_COMMAND", "ADD")
 		os.Setenv("CNI_IFNAME", "eth0")
@@ -1208,7 +1208,7 @@ var _ = Describe("multus operations", func() {
 
 		// This plugin invocation should fail
 		err := fmt.Errorf("expected plugin failure")
-		fExec.addPlugin(nil, "net1", expectedConf2, nil, err)
+		fExec.addPlugin(nil, "eth1", expectedConf2, nil, err)
 
 		os.Setenv("CNI_COMMAND", "ADD")
 		os.Setenv("CNI_IFNAME", "eth0")
@@ -1280,7 +1280,7 @@ var _ = Describe("multus operations", func() {
 				IP: *testhelpers.EnsureCIDR("1.1.1.3/24"),
 			},
 		}, nil)
-		fExec.addPlugin([]string{"CNI_ARGS=IgnoreUnknown=true;MAC=c2:11:22:33:44:66;IP=10.0.0.1"}, "net2", net2, &types020.Result{
+		fExec.addPlugin([]string{"CNI_ARGS=IgnoreUnknown=true;MAC=c2:11:22:33:44:66;IP=10.0.0.1"}, "eth2", net2, &types020.Result{
 			CNIVersion: "0.2.0",
 			IP4: &types020.IPConfig{
 				IP: *testhelpers.EnsureCIDR("1.1.1.4/24"),
@@ -1351,13 +1351,13 @@ var _ = Describe("multus operations", func() {
 	    "type": "weave-net"
 	}`
 		fExec.addPlugin(nil, "eth0", expectedConf1, expectedResult1, nil)
-		fExec.addPlugin(nil, "net1", net1, &types020.Result{
+		fExec.addPlugin(nil, "eth1", net1, &types020.Result{
 			CNIVersion: "0.2.0",
 			IP4: &types020.IPConfig{
 				IP: *testhelpers.EnsureCIDR("1.1.1.3/24"),
 			},
 		}, nil)
-		fExec.addPlugin(nil, "net2", net2, &types020.Result{
+		fExec.addPlugin(nil, "eth2", net2, &types020.Result{
 			CNIVersion: "0.2.0",
 			IP4: &types020.IPConfig{
 				IP: *testhelpers.EnsureCIDR("1.1.1.4/24"),
@@ -1420,7 +1420,7 @@ var _ = Describe("multus operations", func() {
 	    "type": "weave-net"
 	}`
 		fExec.addPlugin(nil, "eth0", expectedConf1, expectedResult1, nil)
-		fExec.addPlugin(nil, "net1", net1, &types020.Result{
+		fExec.addPlugin(nil, "eth1", net1, &types020.Result{
 			CNIVersion: "0.2.0",
 			IP4: &types020.IPConfig{
 				IP: *testhelpers.EnsureCIDR("1.1.1.3/24"),
@@ -1488,7 +1488,7 @@ var _ = Describe("multus operations", func() {
 	    "type": "weave-net"
 	}`
 		fExec.addPlugin(nil, "eth0", expectedConf1, expectedResult1, nil)
-		fExec.addPlugin(nil, "net1", net1, &types020.Result{
+		fExec.addPlugin(nil, "eth1", net1, &types020.Result{
 			CNIVersion: "0.2.0",
 			IP4: &types020.IPConfig{
 				IP: *testhelpers.EnsureCIDR("1.1.1.3/24"),
@@ -1556,7 +1556,7 @@ var _ = Describe("multus operations", func() {
 	    "type": "weave-net"
 	}`
 		fExec.addPlugin(nil, "eth0", expectedConf1, expectedResult1, nil)
-		fExec.addPlugin(nil, "net1", net1, &types020.Result{
+		fExec.addPlugin(nil, "eth1", net1, &types020.Result{
 			CNIVersion: "0.2.0",
 			IP4: &types020.IPConfig{
 				IP: *testhelpers.EnsureCIDR("1.1.1.3/24"),
@@ -1726,7 +1726,7 @@ var _ = Describe("multus operations", func() {
 	    "type": "weave-net"
 	}`
 		fExec.addPlugin(nil, "eth0", expectedConf1, expectedResult1, nil)
-		fExec.addPlugin(nil, "net1", net1, &types020.Result{
+		fExec.addPlugin(nil, "eth1", net1, &types020.Result{
 			CNIVersion: "0.2.0",
 			IP4: &types020.IPConfig{
 				IP: *testhelpers.EnsureCIDR("1.1.1.3/24"),
@@ -1804,7 +1804,7 @@ var _ = Describe("multus operations", func() {
 	    "type": "weave-net"
 	}`
 		fExec.addPlugin(nil, "eth0", expectedConf1, expectedResult1, nil)
-		fExec.addPlugin(nil, "net1", net1, &types020.Result{
+		fExec.addPlugin(nil, "eth1", net1, &types020.Result{
 			CNIVersion: "0.2.0",
 			IP4: &types020.IPConfig{
 				IP: *testhelpers.EnsureCIDR("1.1.1.3/24"),
@@ -1894,7 +1894,7 @@ var _ = Describe("multus operations", func() {
 	    "cniVersion": "0.2.0",
 	    "type": "other-plugin"
 	}`
-		fExec.addPlugin(nil, "net1", expectedConf2, expectedResult2, nil)
+		fExec.addPlugin(nil, "eth1", expectedConf2, expectedResult2, nil)
 
 		os.Setenv("CNI_COMMAND", "ADD")
 		os.Setenv("CNI_IFNAME", "eth0")

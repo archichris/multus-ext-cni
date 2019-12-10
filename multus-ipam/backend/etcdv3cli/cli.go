@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"net"
 
+	"strconv"
 	"strings"
 
 	"github.com/coreos/etcd/clientv3"
@@ -336,12 +337,13 @@ func IPAMApplyFixIP(network string, r *allocator.Range, fixInfo string) (*net.IP
 }
 
 // GetFreeIPRange is used to find a free IP range
-func IPAMGenFixInfo(ns, name string) string {
-	return strings.Trim(ns+fixGap+name, "\r\n\t ")
+func IPAMGenFixInfo(ns, name string, n int) string {
+	return strings.Trim(ns+fixGap+name+fixGap+strconv.Itoa(n), "\r\n\t ")
+
 }
 func IPAMParseFixInfo(info string) (string, string) {
 	v := strings.Split(strings.Trim(info, " \r\n\t"), fixGap)
-	if len(v) != 2 {
+	if len(v) < 2 {
 		return "waitToDel", "waitToDel"
 	}
 	return v[0], v[1]

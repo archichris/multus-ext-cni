@@ -1,13 +1,20 @@
 package main
 
 import (
-	"io/ioutil"
-	"os"
-
+	"context"
+	"fmt"
+	"github.com/containernetworking/cni/pkg/skel"
+	// "github.com/containernetworking/plugins/pkg/ns"
+	"github.com/containernetworking/plugins/pkg/testutils"
+	"github.com/coreos/etcd/clientv3"
+	"github.com/intel/multus-cni/etcdv3"
 	"github.com/intel/multus-cni/logging"
 	"github.com/intel/multus-cni/multus-ipam/backend/allocator"
+	"github.com/intel/multus-cni/multus-ipam/backend/disk"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"io/ioutil"
+	"os"
 )
 
 var _ = Describe("Main", func() {
@@ -145,36 +152,53 @@ var _ = Describe("Main", func() {
 		os.Setenv("HOSTNAME", "hostname")
 		logging.SetLogFile("/tmp/multus-test.log")
 		logging.SetLogLevel("debug")
+		os.Setenv("CNI_PATH", "/tmp")
 	})
 
 	AfterEach(func() {
 		os.Setenv("ETCD_CFG_DIR", etcdCfgDir)
 		os.Setenv("ETCD_ROOT_DIR", etcdRootDir)
 		os.Setenv("HOSTNAME", hostname)
+		os.Unsetenv("CNI_PATH")
+		os.Unsetenv("CNI_ARGS")
 	})
 
 	Describe("TODO", func() {
 		var netConf *allocator.Net
 		BeforeEach(func() {
-			// em, _ := etcdv3.New()
-			// defer em.Close()
-			// em.Cli.Delete(context.TODO(), em.RootKeyDir, clientv3.WithPrefix())
-			// netConf, _, _ = allocator.LoadIPAMConfig(cniCfg, "")
-			// s, _ := disk.New(netConf.Name, "")
-			// caches, _ := s.LoadCache()
-			// for _, csr := range caches {
-			// 	s.DeleteCache(&csr)
-			// }
+			em, _ := etcdv3.New()
+			defer em.Close()
+			em.Cli.Delete(context.TODO(), em.RootKeyDir, clientv3.WithPrefix())
+			netConf, _, _ = allocator.LoadIPAMConfig(cniCfg, "")
+			s, _ := disk.New(netConf.Name, "")
+			caches, _ := s.LoadCache()
+			for _, csr := range caches {
+				s.DeleteCache(&csr)
+			}
 		})
 		AfterEach(func() {
-			// em, _ := etcdv3.New()
-			// defer em.Close()
-			// em.Cli.Delete(context.TODO(), em.RootKeyDir, clientv3.WithPrefix())
-			// s, _ := disk.New(netConf.Name, "")
-			// caches, _ := s.LoadCache()
-			// for _, csr := range caches {
-			// 	s.DeleteCache(&csr)
-			// }
+			em, _ := etcdv3.New()
+			defer em.Close()
+			em.Cli.Delete(context.TODO(), em.RootKeyDir, clientv3.WithPrefix())
+			s, _ := disk.New(netConf.Name, "")
+			caches, _ := s.LoadCache()
+			for _, csr := range caches {
+				s.DeleteCache(&csr)
+			}
+		})
+		It("find first ip range", func() {
+			testNS, err := testutils.NewNS()
+			Expect(err).NotTo(HaveOccurred())
+			args := &skel.CmdArgs{
+				ContainerID: "123456789",
+				Netns:       testNS.Path(),
+				IfName:      "eth0",
+				Args:        fmt.Sprintf("K8S_POD_NAME=%s;K8S_POD_NAMESPACE=%s;Fix=testnetfix;Num=testnetfix:4", "testpod", "testnamespace"),
+				StdinData:   cniFixCfg,
+			}
+			err = cmdAdd(args)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(testNS.Close()).To(Succeed())
 		})
 	})
 

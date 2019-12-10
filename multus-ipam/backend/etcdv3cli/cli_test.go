@@ -7,7 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-
+	"strconv"
 	// "strings"
 
 	"github.com/containernetworking/cni/pkg/types"
@@ -438,7 +438,6 @@ var _ = Describe("Cli", func() {
 		var netConf *allocator.Net
 		var namespace = "testns"
 		var podName = "testpod"
-		var fixInfoTmp = namespace + fixGap + podName + "%d"
 		BeforeEach(func() {
 			em, _ := etcdv3.New()
 			defer em.Close()
@@ -452,6 +451,14 @@ var _ = Describe("Cli", func() {
 			em.Cli.Delete(context.TODO(), em.RootKeyDir, clientv3.WithPrefix())
 		})
 
+		It("generate and parse fix info", func() {
+			fixInfo := IPAMGenFixInfo(namespace, podName, 1)
+			Expect(fixInfo).To(Equal(namespace + fixGap + podName + fixGap + "1"))
+			parseNS, parsePod := IPAMParseFixInfo(fixInfo)
+			Expect(parseNS).To(Equal(namespace))
+			Expect(parsePod).To(Equal(podName))
+		})
+
 		It("rand apply fix ips and check the ip allocation is fixed", func() {
 			em, _ := etcdv3.New()
 			defer em.Close()
@@ -462,30 +469,40 @@ var _ = Describe("Cli", func() {
 			n := 4
 			lease := []*net.IPNet{}
 			for i := 0; i < n; i++ {
-				network, err := IPAMApplyFixIP(netConf.Name, netConf.IPAM.FixRange, fmt.Sprintf(fixInfoTmp, i))
-				Expect(err).To(BeNil())
-				lease = append(lease, network)
+				pod := podName + strconv.Itoa(i)
+				for v := 0; v < n; v++ {
+					fixInfo := IPAMGenFixInfo(namespace, pod, v)
+					network, err := IPAMApplyFixIP(netConf.Name, netConf.IPAM.FixRange, fixInfo)
+					Expect(err).To(BeNil())
+					lease = append(lease, network)
+				}
 			}
 
 			logging.Debugf("lease: %v", lease)
 
-			for i := 0; i < n; i++ {
-				for j := 1; j < n; j++ {
+			l := len(lease)
+
+			for i := 0; i < l; i++ {
+				for j := 1; j < l; j++ {
 					if i == j {
 						continue
 					}
 					Expect(lease[i].String()).NotTo(Equal(lease[j].String()))
 				}
-				network, err := IPAMApplyFixIP(netConf.Name, netConf.IPAM.FixRange, fmt.Sprintf(fixInfoTmp, i))
+				podIndex := int(i / n)
+				ifIndex := i % n
+				pod := podName + strconv.Itoa(podIndex)
+				fixInfo := IPAMGenFixInfo(namespace, pod, ifIndex)
+				network, err := IPAMApplyFixIP(netConf.Name, netConf.IPAM.FixRange, fixInfo)
 				Expect(err).To(BeNil())
-				logging.Debugf("network: info:%v, net:%v", fmt.Sprintf(fixInfoTmp, i), network)
+				logging.Debugf("network: info:%v, net:%v", fixInfo, network)
 				Expect(lease[i].String()).To(Equal(network.String()))
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), etcdv3.RequestTimeout)
 			keyDir := filepath.Join(em.RootKeyDir, fixDir, netConf.Name)
 			resp, _ := em.Cli.Get(ctx, keyDir, clientv3.WithPrefix())
 			cancel()
-			Expect(len(resp.Kvs)).To(Equal(n))
+			Expect(len(resp.Kvs)).To(Equal(n * n))
 			for _, ev := range resp.Kvs {
 				k := ipaddr.Uint32ToIP4(ipaddr.StrToUint32(filepath.Base(string(ev.Key))))
 				match := false

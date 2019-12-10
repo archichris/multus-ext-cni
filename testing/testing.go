@@ -32,6 +32,16 @@ import (
 	"github.com/onsi/gomega"
 )
 
+var (
+	CRDPlural               = "network-attachment-definitions"
+	annotation              = "networks"
+	ResourceNameAnnot       = "k8s.v1.cni.cncf.io/resourceName"
+	NetworkAttachmentAnnot  = "k8s.v1.cni.cncf.io/" + annotation
+	DefaultNetAnnot         = NetworkAttachmentAnnot + "-default"
+	NetworkAttachmentStatus = NetworkAttachmentAnnot + "-status"
+	ExtEnvAnnot             = "k8s.v1.cni.cncf.io/extEnv"
+)
+
 // FakeKubeClient is stub KubeClient for testing
 type FakeKubeClient struct {
 	pods     map[string]*v1.Pod
@@ -73,7 +83,7 @@ func (f *FakeKubeClient) AddNetConfig(namespace, name, data string) {
 }`, namespace, name, strings.Replace(data, "\"", "\\\"", -1))
 	cr = strings.Replace(cr, "\n", "", -1)
 	cr = strings.Replace(cr, "\t", "", -1)
-	f.nets[fmt.Sprintf("/apis/k8s.cni.cncf.io/v1/namespaces/%s/network-attachment-definitions/%s", namespace, name)] = cr
+	f.nets[fmt.Sprintf("/apis/k8s.cni.cncf.io/v1/namespaces/%s/"+CRDPlural+"/%s", namespace, name)] = cr
 }
 
 // AddNetConfigAnnotation adds net-attach-def into its client with an annotation
@@ -94,7 +104,7 @@ func (f *FakeKubeClient) AddNetConfigAnnotation(namespace, name, data string) {
   }`, namespace, name, strings.Replace(data, "\"", "\\\"", -1))
 	cr = strings.Replace(cr, "\n", "", -1)
 	cr = strings.Replace(cr, "\t", "", -1)
-	f.nets[fmt.Sprintf("/apis/k8s.cni.cncf.io/v1/namespaces/%s/network-attachment-definitions/%s", namespace, name)] = cr
+	f.nets[fmt.Sprintf("/apis/k8s.cni.cncf.io/v1/namespaces/%s/"+CRDPlural+"/%s", namespace, name)] = cr
 }
 
 // AddNetFile puts config file as net-attach-def
@@ -107,7 +117,7 @@ func (f *FakeKubeClient) AddNetFile(namespace, name, filePath, fileData string) 
     "name": "%s"
   }
 }`, namespace, name)
-	f.nets[fmt.Sprintf("/apis/k8s.cni.cncf.io/v1/namespaces/%s/"+crdPlural+"/%s", namespace, name)] = cr
+	f.nets[fmt.Sprintf("/apis/k8s.cni.cncf.io/v1/namespaces/%s/"+CRDPlural+"/%s", namespace, name)] = cr
 
 	err := ioutil.WriteFile(filePath, []byte(fileData), 0600)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -161,11 +171,11 @@ func NewFakePod(name string, netAnnotation string, defaultNetAnnotation string) 
 	if netAnnotation != "" {
 		netAnnotation = strings.Replace(netAnnotation, "\n", "", -1)
 		netAnnotation = strings.Replace(netAnnotation, "\t", "", -1)
-		annotations["k8s.v1.cni.cncf.io/mynetworks"] = netAnnotation
+		annotations[NetworkAttachmentAnnot] = netAnnotation
 	}
 
 	if defaultNetAnnotation != "" {
-		annotations["v1.multus-cni.io/default-network"] = defaultNetAnnotation
+		annotations[DefaultNetAnnot] = defaultNetAnnotation
 	}
 
 	pod.ObjectMeta.Annotations = annotations
