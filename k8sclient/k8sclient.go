@@ -37,7 +37,7 @@ import (
 )
 
 var (
-	CRDPlural               = "network-attachment-definitions" //-ldflags "-X github.com/intel/multus-cni/k8sclient.annotation"
+	CRDPlural               = "network-attachment-definitions" //-ldflags "-X github.com/intel/multus-cni/k8sclient.CRDPlural"
 	annotation              = "networks"                       //-ldflags "-X github.com/intel/multus-cni/k8sclient.annotation=mynetworks"
 	ResourceNameAnnot       = "k8s.v1.cni.cncf.io/resourceName"
 	NetworkAttachmentAnnot  = "k8s.v1.cni.cncf.io/" + annotation

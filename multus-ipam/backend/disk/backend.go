@@ -154,7 +154,7 @@ func (s *Store) ReleaseByKey(id string, ifname string, match string) (bool, erro
 		if err != nil {
 			return nil
 		}
-		if strings.TrimSpace(string(data)) == match {
+		if strings.HasPrefix(strings.TrimSpace(string(data)), match) {
 			if err := os.Remove(path); err != nil {
 				return nil
 			}
@@ -198,7 +198,7 @@ func (s *Store) GetByID(id string, ifname string) []net.IP {
 		if err != nil {
 			return nil
 		}
-		if strings.TrimSpace(string(data)) == match || strings.TrimSpace(string(data)) == matchOld {
+		if strings.HasPrefix(strings.TrimSpace(string(data)), match) || strings.TrimSpace(string(data)) == matchOld {
 			_, ipString := filepath.Split(path)
 			if ip := net.ParseIP(ipString); ip != nil {
 				ips = append(ips, ip)
@@ -248,7 +248,7 @@ func (s *Store) LoadCache() ([]allocator.SimpleRange, error) {
 		line = strings.TrimRight(line, "\n\r\t ")
 		pairIP := strings.Split(line, "-")
 		// logging.Debugf("load cache %v", pairIP)
-		result = append(result, allocator.SimpleRange{net.ParseIP(pairIP[0]), net.ParseIP(pairIP[1])})
+		result = append(result, allocator.SimpleRange{RangeStart: net.ParseIP(pairIP[0]), RangeEnd: net.ParseIP(pairIP[1])})
 	}
 }
 

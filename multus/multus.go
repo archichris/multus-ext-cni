@@ -100,6 +100,18 @@ func getIfname(delegate *types.DelegateNetConf, argif string, idx int) string {
 	return fmt.Sprintf("eth%d", idx)
 }
 
+func getIfnameHw(delegate *types.DelegateNetConf, argif string, idx int) string {
+	logging.Debugf("getIfnameHw: %v, %s, %d", delegate, argif, idx)
+	if delegate.MasterPlugin || (idx == 0) {
+		// master plugin always uses the CNI-provided interface name
+		return "net0"
+	}
+
+	// Otherwise construct a unique interface name from the delegate's
+	// position in the delegate list
+	return fmt.Sprintf("eth%d", idx-1)
+}
+
 func saveDelegates(containerID, dataDir string, delegates []*types.DelegateNetConf) error {
 	logging.Debugf("saveDelegates: %s, %s, %v", containerID, dataDir, delegates)
 	delegatesBytes, err := json.Marshal(delegates)

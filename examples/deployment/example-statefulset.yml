@@ -15,8 +15,8 @@ spec:
       labels:
         app: examplefix
       annotations:
-        k8s.v1.cni.cncf.io/mynetworks: vxlan1 #, macvlan3
-        k8s.v1.cni.cncf.io/extEnv: "Fix=vxlan1,macvlan3"
+        k8s.v1.cni.cncf.io/mynetworks: vxlan1
+        k8s.v1.cni.cncf.io/extEnv: "Fix=vxlan1;Num=vxlan1:1"
     spec:
       affinity:
         podAntiAffinity:

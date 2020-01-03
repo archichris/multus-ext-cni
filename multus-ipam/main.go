@@ -19,6 +19,7 @@ import (
 	// "flag"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 
 	"github.com/containernetworking/cni/pkg/skel"
@@ -233,49 +234,52 @@ func allocateIP(netConf *allocator.Net, store *disk.Store, containerID string, i
 	logging.Debugf("allocate ip from %v", rss)
 	allocs := []*allocator.IPAllocator{}
 	IPs := []*current.IPConfig{}
-	for idx, rs := range rss {
-		var err error = nil
-		var ipConf *current.IPConfig = nil
-		var alloc *allocator.IPAllocator = nil
-
-		if len(rs) > 0 {
-			alloc = allocator.NewIPAllocator(&rs, store, idx)
-			logging.Debugf("allocator(%v, %v, %v) return %v", rs, store, idx, alloc)
-			ipConf, err = alloc.Get(containerID, ifName, nil)
-		} else {
-			err = logging.Errorf("no IP addresses available in range set")
-		}
-		//try most 3 times
-		for i := 0; i < 3; i++ {
-			if err != nil && strings.Contains(err.Error(), "no IP addresses available in range set") {
-				var sr *allocator.SimpleRange
-				sr, err = etcdv3cli.IPAMApplyIPRange(netConf.Name, &ipamConf.Ranges[idx][0], ipamConf.ApplyUnit)
-				// logging.Debugf("apply new ip range(%v, %v, %v) return %v, %v, %v", ipamConf.Name, &ipamConf.Ranges[idx][0].Subnet, ipamConf.ApplyUnit, sIP, eIP, err)
-				if err == nil {
-					// store.AppendRangeToCache(fmt.Sprintf("%s-%s", sIP.String(), eIP.String()))
-					store.AppendCache(sr)
-					r := ipamConf.Ranges[idx][0]
-					r.RangeStart, r.RangeEnd = sr.RangeStart, sr.RangeEnd
-					alloc = allocator.NewIPAllocator(&(allocator.RangeSet{r}), store, idx)
-					logging.Debugf("NewIPAllocator(%v, %v, %v) return %v", allocator.RangeSet{r}, store, idx, alloc)
-					ipConf, err = alloc.Get(containerID, ifName, nil)
-					if err != nil {
-						logging.Errorf("alloc ip from range %v failed, %v", r, err)
-						continue
+	for s := 0; s < ipamConf.Num; s++ {
+		subIfName := ifName + "." + strconv.Itoa(s)
+		for idx, rs := range rss {
+			var err error = nil
+			var ipConf *current.IPConfig = nil
+			var alloc *allocator.IPAllocator = nil
+			if len(rs) > 0 {
+				alloc = allocator.NewIPAllocator(&rs, store, idx)
+				logging.Debugf("allocator(%v, %v, %v) return %v", rs, store, idx, alloc)
+				ipConf, err = alloc.Get(containerID, subIfName, nil)
+			} else {
+				err = logging.Errorf("no IP addresses available in range set")
+			}
+			//try most 3 times
+			for i := 0; i < 3; i++ {
+				if err != nil && strings.Contains(err.Error(), "no IP addresses available in range set") {
+					var sr *allocator.SimpleRange
+					sr, err = etcdv3cli.IPAMApplyIPRange(netConf.Name, &ipamConf.Ranges[idx][0], ipamConf.ApplyUnit)
+					// logging.Debugf("apply new ip range(%v, %v, %v) return %v, %v, %v", ipamConf.Name, &ipamConf.Ranges[idx][0].Subnet, ipamConf.ApplyUnit, sIP, eIP, err)
+					if err == nil {
+						// store.AppendRangeToCache(fmt.Sprintf("%s-%s", sIP.String(), eIP.String()))
+						store.AppendCache(sr)
+						r := ipamConf.Ranges[idx][0]
+						r.RangeStart, r.RangeEnd = sr.RangeStart, sr.RangeEnd
+						alloc = allocator.NewIPAllocator(&(allocator.RangeSet{r}), store, idx)
+						logging.Debugf("NewIPAllocator(%v, %v, %v) return %v", allocator.RangeSet{r}, store, idx, alloc)
+						ipConf, err = alloc.Get(containerID, subIfName, nil)
+						if err != nil {
+							logging.Errorf("alloc ip from range %v failed, %v", r, err)
+							continue
+						}
 					}
 				}
+				break
 			}
+			if err != nil {
+				// Deallocate all already allocated IPs
+				for _, alloc := range allocs {
+					_ = alloc.Release(containerID, ifName)
+				}
+				return nil, logging.Errorf("failed to allocate for range %d: %v", idx, err)
+			}
+			allocs = append(allocs, alloc)
+			IPs = append(IPs, ipConf)
 			break
 		}
-		if err != nil {
-			// Deallocate all already allocated IPs
-			for _, alloc := range allocs {
-				_ = alloc.Release(containerID, ifName)
-			}
-			return nil, logging.Errorf("failed to allocate for range %d: %v", idx, err)
-		}
-		allocs = append(allocs, alloc)
-		IPs = append(IPs, ipConf)
 	}
 
 	logging.Debugf("Return IPS: %v", IPs)

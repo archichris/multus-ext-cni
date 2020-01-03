@@ -70,7 +70,7 @@ var _ = Describe("Disk", func() {
 				store.Reserve(fmt.Sprintf("%s%d", tn, i), fmt.Sprintf("eth%d", idx), curIP, "0")
 				curIP = ip.NextIP(curIP)
 			}
-			store.AppendCache(&allocator.SimpleRange{testIPs[idx], curIP})
+			store.AppendCache(&allocator.SimpleRange{RangeStart: testIPs[idx], RangeEnd: curIP})
 		}
 
 		leases := LoadAllLeases("", dataDir)
@@ -94,5 +94,27 @@ var _ = Describe("Disk", func() {
 			}
 			Expect(match).To(BeTrue())
 		}
+	})
+	It("apply with subif and delete with masterif name ", func() {
+		store, _ := New(network, dataDir)
+		store.Reserve("gateway", "gateway", net.ParseIP(gwIP), "0")
+		Expect(GetID(filepath.Join(dataDir, network, gwIP))).To(Equal("gateway"))
+		id := "dlkfangmafodfadfdjgamds1223fef"
+		testIP1 := net.IPv4(192, 168, 200, 100)
+		testIP2 := net.IPv4(192, 168, 200, 101)
+		store.Reserve(id, "eth1.0", testIP1, "0")
+		store.Reserve(id, "eth1.1", testIP2, "0")
+		ips := store.GetByID(id, "eth1.0")
+		Expect(len(ips)).To(Equal(1))
+		ips = store.GetByID(id, "eth1.1")
+		Expect(len(ips)).To(Equal(1))
+		ips = store.GetByID(id, "eth1")
+		Expect(len(ips)).To(Equal(2))
+		store.ReleaseByID(id, "eth1.0")
+		ips = store.GetByID(id, "eth1")
+		Expect(len(ips)).To(Equal(1))
+		store.ReleaseByID(id, "eth1")
+		ips = store.GetByID(id, "eth1")
+		Expect(len(ips)).To(Equal(0))
 	})
 })

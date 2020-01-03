@@ -61,13 +61,13 @@ func init() {
 
 type multusd struct {
 	ctx    context.Context
-	wg     sync.WaitGroup
+	wg     *sync.WaitGroup
 	mux    sync.Mutex
 	buf    map[string]string
 	keyDir string
 }
 
-func newMultusd(ctx context.Context, wg sync.WaitGroup, keyDir string) *multusd {
+func newMultusd(ctx context.Context, wg *sync.WaitGroup, keyDir string) *multusd {
 	return &multusd{
 		ctx:    ctx,
 		wg:     wg,
@@ -86,7 +86,6 @@ func (d *multusd) Run() {
 		logging.Verbosef("Watching exited")
 		d.wg.Done()
 	}()
-	d.procHistoryRecord("")
 
 	//todo prevent out of ord between history record and watching
 	ipamEtcd.IPAMCheckEtcd()
@@ -116,15 +115,20 @@ func (d *multusd) Run() {
 
 func (d *multusd) Watching(ctx context.Context, keyPrefix string) {
 	logging.Verbosef("Watching %v", keyPrefix)
+	var cli *clientv3.Client = nil
 	for {
 		etcdMultus, err := etcdv3.New()
-		cli := etcdMultus.Cli
+		if cli != nil {
+			cli.Close()
+		}
+		cli = etcdMultus.Cli
 		if err != nil {
 			logging.Errorf("Create etcd client failed, %v", err)
 			time.Sleep(defaultWaitTime)
 			continue
 		}
 		defer cli.Close()
+		d.procHistoryRecord("")
 		rch := cli.Watch(ctx, keyPrefix, clientv3.WithPrefix())
 		for wresp := range rch {
 			for _, ev := range wresp.Events {
@@ -244,7 +248,7 @@ func main() {
 	wg = sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		newMultusd(ctx, wg, "multus/vxlan").Run()
+		newMultusd(ctx, &wg, "multus/vxlan").Run()
 		wg.Done()
 	}()
 
