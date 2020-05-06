@@ -287,7 +287,11 @@ function checkDaemon(){
   count=`ps -ef |grep $DAEMON_BIN_FILE |grep -v "grep" |wc -l`
   #echo $count
   if [ 0 == $count ];then
-    ETCD_CFG_DIR=${ETCD_FILE_HOST_DIR} TICKER_TIME=${MULTUS_TICKER_TIME} DOCKER_HOST="unix:///host/var/run/docker.sock"  ${DAEMON_BIN_FILE} &
+    MULTUS_DAEMON_LOG_FILE=""
+    if [ ! -z "${MULTUS_LOG_FILE// /}" ]; then
+        MULTUS_DAEMON_LOG_FILE="$(dirname ${MULTUS_LOG_FILE})/multus-daemon.log"
+    fi
+    ETCD_CFG_DIR=${ETCD_FILE_HOST_DIR} TICKER_TIME=${MULTUS_TICKER_TIME} DOCKER_HOST="unix:///host/var/run/docker.sock" LOG_FILE=${MULTUS_DAEMON_LOG_FILE} LOG_LEVEL=${MULTUS_LOG_LEVEL} ${DAEMON_BIN_FILE} &
   fi
 }
 
@@ -421,10 +425,10 @@ EOF
 }
 generateMultusConf
 
-ETCD_CFG_DIR=${ETCD_FILE_HOST_DIR} TICKER_TIME=${MULTUS_TICKER_TIME} DOCKER_HOST="unix:///host/var/run/docker.sock"  ${DAEMON_BIN_FILE} &
+# ETCD_CFG_DIR=${ETCD_FILE_HOST_DIR} TICKER_TIME=${MULTUS_TICKER_TIME} DOCKER_HOST="unix:///host/var/run/docker.sock"  ${DAEMON_BIN_FILE} &
 
 # ---------------------- end Generate "00-multus.conf".
-
+checkDaemon
 
 
 # Enter either sleep loop, or watch loop...

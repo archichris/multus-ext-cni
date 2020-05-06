@@ -60,8 +60,19 @@ type KubeManager struct {
 
 func init() {
 	//for debug
-	logging.SetLogFile("/host/var/log/multus-controller.log")
-	logging.SetLogLevel("debug")
+	logFile := os.Getenv("LOG_FILE")
+	logLevel := os.Getenv("LOG_LEVEL")
+
+	if len(logFile) > 0 {
+		logging.SetLogFile(logFile)
+	}
+
+	if len(logLevel) > 0 {
+		logging.SetLogLevel(logLevel)
+	}
+
+	// logging.SetLogFile("/host/var/log/multus-controller.log")
+	// logging.SetLogLevel("debug")
 }
 
 func NewKubeManager(ctx context.Context, wg sync.WaitGroup) (*KubeManager, error) {

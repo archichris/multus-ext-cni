@@ -8,12 +8,12 @@ clientPort: 2379
 component: "etcd"
 # name: "etcd"
 namespace: "default"
-replicas: 3
+replicas: 1
 pullSecret: true
 registrySecret: registry-secret
 image:
-  repository: "swr.cn-north-1.myhuaweicloud.com/unc/etcd"
-  tag: "v3.4.1"
+  repository: "k8s.gcr.io/etcd-amd64"
+  tag: "3.2.26"
   pullPolicy: "IfNotPresent"
 resources: {}
 # We usually recommend not to specify default resources and to leave this as a conscious
@@ -46,14 +46,8 @@ auth:
     ## Switch to enable host authentication using TLS certificates. Requires existing secret.
     enableAuthentication: false
 
-extLabel:
-  failure-domain.beta.kubernetes.io/region: "cn-north-1"
-  failure-domain.beta.kubernetes.io/zone: "cn-north-1a"
 persistentVolume:
-  enabled: true
-  annotations:
-    volume.beta.kubernetes.io/storage-class: "sata"
-    volume.beta.kubernetes.io/storage-provisioner: "flexvolume-huawei.com/fuxivol"
+  enabled: false
   # storage: "1Gi"
   ## etcd data Persistent Volume Storage Class
   ## If defined, storageClassName: <storageClass>

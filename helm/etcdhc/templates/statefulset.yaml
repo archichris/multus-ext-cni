@@ -1,7 +1,7 @@
 {{- $etcdPeerProtocol := include "etcd.peerProtocol" . }}
 {{- $etcdClientProtocol := include "etcd.clientProtocol" . }}
 {{- $etcdAuthOptions := include "etcd.authOptions" . }}
-apiVersion: apps/v1beta2
+apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: {{ template "etcd.fullname" . }}
@@ -17,9 +17,6 @@ spec:
   selector:
     matchLabels:
       app: {{ template "etcd.name" . }}
-{{ toYaml .Values.extLabel | indent 6 }}
-      # failure-domain.beta.kubernetes.io/region: cn-north-1
-      # failure-domain.beta.kubernetes.io/zone: cn-north-1a
   serviceName: {{ template "etcd.fullname" . }}
   replicas: {{ .Values.replicas }}
   template:
@@ -33,7 +30,7 @@ spec:
         release: {{ .Release.Name | quote }}
         chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
         app: {{ template "etcd.name" . }}
-{{ toYaml .Values.extLabel | indent 8 }}
+# {{ toYaml .Values.extLabel | indent 8 }}
     spec:
 {{- if .Values.affinity }}
       affinity:

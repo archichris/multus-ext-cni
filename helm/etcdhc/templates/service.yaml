@@ -11,12 +11,16 @@ metadata:
     chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
     app: {{ template "etcd.name" . }}
 spec:
+  type: NodePort
   ports:
   - port: {{ .Values.peerPort }}
     name: etcd-server
+    targetPort: {{ .Values.peerPort }}
+    nodePort: 32380
   - port: {{ .Values.clientPort }}
     name: etcd-client
-  clusterIP: None
+    targetPort: {{ .Values.clientPort }}
+    nodePort: 32379
   selector:
     app: {{ template "etcd.name" . }}
     release: {{ .Release.Name | quote }}

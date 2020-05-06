@@ -24,8 +24,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/archichris/netools/dev"
 	"github.com/coreos/etcd/clientv3"
-	"github.com/intel/multus-cni/dev"
 	"github.com/intel/multus-cni/etcdv3"
 	"github.com/intel/multus-cni/logging"
 	ipamDocker "github.com/intel/multus-cni/multus-ipam/backend/dockercli"
@@ -50,14 +50,21 @@ var (
 
 func init() {
 	//for debug
-	logging.SetLogFile("/host/var/log/multus-daemon.log")
-	logging.SetLogLevel("debug")
-}
+	logFile := os.Getenv("LOG_FILE")
+	logLevel := os.Getenv("LOG_LEVEL")
 
-// type vxlan struct {
-// 	index int
-// 	name  string
-// }
+	if len(logFile) > 0 {
+		logging.SetLogFile(logFile)
+	}
+
+	if len(logLevel) > 0 {
+		logging.SetLogLevel(logLevel)
+	}
+
+	//debug
+	// logging.SetLogFile("/host/var/log/multus-daemon.log")
+	// logging.SetLogLevel("debug")
+}
 
 type multusd struct {
 	ctx    context.Context

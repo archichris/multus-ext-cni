@@ -22,7 +22,7 @@ import (
 
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/plugins/pkg/ip"
-	"github.com/intel/multus-cni/ipaddr"
+	"github.com/archichris/netools/ipaddr"
 	"github.com/intel/multus-cni/logging"
 )
 

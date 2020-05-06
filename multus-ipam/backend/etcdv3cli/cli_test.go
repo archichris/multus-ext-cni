@@ -13,7 +13,7 @@ import (
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/intel/multus-cni/etcdv3"
-	"github.com/intel/multus-cni/ipaddr"
+	"github.com/archichris/netools/ipaddr"
 	"github.com/intel/multus-cni/logging"
 	"github.com/intel/multus-cni/multus-ipam/backend/allocator"
 	"github.com/intel/multus-cni/multus-ipam/backend/disk"

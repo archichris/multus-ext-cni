@@ -5,7 +5,7 @@ import (
 	"net"
 	"syscall"
 
-	"github.com/intel/multus-cni/dev"
+	"github.com/archichris/netools/dev"
 	"github.com/intel/multus-cni/logging"
 	"github.com/vishvananda/netlink"
 )
@@ -107,22 +107,25 @@ func setupVxlan(cfg *VxlanNetConf) (*netlink.Vxlan, error) {
 	if err != nil {
 		return nil, logging.Errorf("error looking up interface %s: %s", cfg.Master, err)
 	}
-
-	ifaceAddr, err := dev.GetIfaceIP4Addr(iface)
+	if iface.MTU == 0 {
+		return nil, logging.Errorf("failed to determine MTU for %s interface", iface.Name)
+	}
+	// ifaceAddr, err := dev.GetIfaceIP4Addr(iface)
+	// if err != nil {
+	// 	return nil, logging.Errorf("failed to find IPv4 address for interface %s", iface.Name)
+	// }
+	ifaceNet, err := dev.GetIfaceIP4Net(iface)
 	if err != nil {
 		return nil, logging.Errorf("failed to find IPv4 address for interface %s", iface.Name)
 	}
 
-	if iface.MTU == 0 {
-		return nil, logging.Errorf("failed to determine MTU for %s interface", ifaceAddr)
-	}
 	linkCfg := &netlink.Vxlan{
 		LinkAttrs: netlink.LinkAttrs{
 			Name: fmt.Sprintf("mulvx.%v", cfg.VxlanId),
 		},
 		VxlanId:      cfg.VxlanId,
 		VtepDevIndex: iface.Index,
-		SrcAddr:      ifaceAddr,
+		SrcAddr:      ifaceNet.IP,
 		Port:         cfg.Port,
 		Learning:     cfg.Learning,
 		GBP:          cfg.GBP,
