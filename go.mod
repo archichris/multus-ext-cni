@@ -7,7 +7,7 @@ require (
 	github.com/alexflint/go-filemutex v0.0.0-20171022225611-72bdc8eae2ae
 	github.com/archichris/netools/dev v0.0.0-20191123124102-ac7dd0b8116b
 	github.com/archichris/netools/ipaddr v0.0.0-20191123124102-ac7dd0b8116b
-	github.com/containernetworking/cni v0.7.1
+	github.com/containernetworking/cni v0.8.1
 	github.com/containernetworking/plugins v0.8.2
 	github.com/coreos/etcd v3.3.10+incompatible
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
