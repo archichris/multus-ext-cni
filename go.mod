@@ -52,9 +52,8 @@ require (
 	gopkg.in/inf.v0 v0.9.0 // indirect
 	gopkg.in/yaml.v1 v1.0.0-20140924161607-9f9df34309c0 // indirect
 	k8s.io/api v0.0.0-20180712090710-2d6f90ab1293
-	k8s.io/apimachinery v0.0.0-20180621070125-103fd098999d
+	k8s.io/apimachinery v0.15.7
 	k8s.io/client-go v0.0.0-20180718001006-59698c7d9724
-	k8s.io/klog v0.0.0-20181108234604-8139d8cb77af // indirect
 	k8s.io/kubernetes v1.13.0
 	sigs.k8s.io/yaml v1.1.0 // indirect
 )
