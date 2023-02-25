@@ -45,7 +45,7 @@ require (
 	github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 // indirect
 	golang.org/x/crypto v0.0.0-20190820162420-60c769a6c586 // indirect
 	golang.org/x/net v0.0.0-20190813141303-74dc4d7220e7
-	golang.org/x/sys v0.0.0-20190825160603-fb81701db80f // indirect
+	golang.org/x/sys v0.1.0 // indirect
 	golang.org/x/text v0.3.2 // indirect
 	golang.org/x/time v0.0.0-20161028155119-f51c12702a4d // indirect
 	google.golang.org/grpc v1.23.0
